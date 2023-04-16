@@ -1,4 +1,5 @@
 import asyncio
+import os
 
 import PySimpleGUI as sg
 
@@ -18,7 +19,8 @@ class BLExplorerGUI:
             self.layout,
             resizable=True,
             size=(800, 600),
-            finalize=True,
+            font=("Helvetica", 12),
+            icon=os.path.join("resources", "blexplorer.ico")
         )
         self.running = True
         while self.running:
@@ -49,7 +51,10 @@ class BLExplorerGUI:
 
     def _create_layout(self):
         font = "Helvetica"
-        layout_heading = [sg.Text("BLExplorer", font=(font, 48))]
+        layout_heading = [
+            sg.Image(os.path.join("resources", "blexplorer.png"), size=(100,100)),
+            sg.Text("BLExplorer", font=(font, 48))
+        ]
         ble_dev_data, ble_dev_data_cols = self.ble.get_found_devices()
         layout_table = [
             sg.Table(
