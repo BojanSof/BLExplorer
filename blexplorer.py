@@ -8,19 +8,25 @@ from ble import Ble
 class BLExplorerGUI:
     def __init__(self):
         self.ble = Ble()
-        self._create_layout()
+        sg.theme("DarkTeal12")
+        self.layout = self._create_layout()
         self.running = False
 
     def run(self):
-        sg.theme("DarkTeal12")
         self.window = sg.Window(
-            "BLExplorer", self.layout, resizable=True, size=(800, 600)
+            "BLExplorer",
+            self.layout,
+            resizable=True,
+            size=(800, 600),
+            finalize=True,
         )
         self.running = True
         while self.running:
             event, values = self.window.read(timeout=20)
             # process event
             self.process_event(event, values)
+            if not self.running:
+                break
             # update
             self.update()
         self.window.close()
@@ -42,10 +48,10 @@ class BLExplorerGUI:
             self.window["-BLE_TABLE_SCAN-"].update(values=ble_dev_data)
 
     def _create_layout(self):
-        font = "MesloLGS NF"
-        self.layout_heading = [sg.Text("BLExplorer", font=(font, 48))]
+        font = "Helvetica"
+        layout_heading = [sg.Text("BLExplorer", font=(font, 48))]
         ble_dev_data, ble_dev_data_cols = self.ble.get_found_devices()
-        self.layout_table = [
+        layout_table = [
             sg.Table(
                 values=ble_dev_data,
                 headings=ble_dev_data_cols,
@@ -53,15 +59,36 @@ class BLExplorerGUI:
                 num_rows=5,
                 font=(font, 16),
                 expand_x=True,
+                background_color="SteelBlue4",
+                alternating_row_color="SteelBlue3",
                 key="-BLE_TABLE_SCAN-",
             )
         ]
-        self.layout_buttons = [sg.Button("Scan", key="-BLE_SCAN-")]
-        self.layout = [
-            self.layout_heading,
-            self.layout_buttons,
-            self.layout_table,
+        layout_buttons = [
+            sg.Frame(
+                "Controls",
+                [[sg.Button("Scan", key="-BLE_SCAN-")]],
+                expand_x=True,
+            )
         ]
+        layout_tabs = [
+            sg.TabGroup(
+                [
+                    [
+                        sg.Tab("Advertisement Info", [[sg.Text("Advertisement")]]),
+                        sg.Tab("Connection info", [[sg.Text("Connection")]]),
+                    ]
+                ],
+                expand_x=True
+            )
+        ]
+        layout = [
+            layout_heading,
+            layout_buttons,
+            layout_table,
+            layout_tabs,
+        ]
+        return layout
 
 
 if __name__ == "__main__":
