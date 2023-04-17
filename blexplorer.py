@@ -13,7 +13,6 @@ class BLExplorerGUI:
         self.layout = self._create_layout()
         self.running = False
         self.i_selected_dev = None
-        self.user_event = True
 
     def run(self):
         self.window = sg.Window(
@@ -43,20 +42,12 @@ class BLExplorerGUI:
                 self.ble.stop_scan()
                 self.window["-BLE_SCAN-"].update(text="Scan")
             else:
-                self.window["-BLE_TABLE_DEVICES-"].update(values=[])
-                self.i_selected_dev = None
+                self.clear_scan_data()
                 self.ble.start_scan()
                 self.window["-BLE_SCAN-"].update(text="Stop Scanning")
         elif event == "-BLE_TABLE_DEVICES-":
-            # NOTE: there is bug (maybe in PSG) that fires two Table events
-            # but one doesn't contain any value
-            # may be connected with the table update call
-            if len(values[event]) > 0:
-                if self.user_event:
-                    self.i_selected_dev = values[event][0]
-                    self.update_advertisement_info()
-                else:
-                    self.user_event = True
+            self.i_selected_dev = values[event][0]
+            self.update_advertisement_info()
 
     def update(self):
         # update scan info
@@ -66,13 +57,25 @@ class BLExplorerGUI:
         if self.ble.has_found_device():
             ble_devices = self.ble.get_found_devices()
             ble_dev_data = self.create_ble_table_data(ble_devices)
+            # workaround not to fire event when updating table
+            # taken from: https://github.com/PySimpleGUI/PySimpleGUI/issues/5129
+            ############### Workaround ######################
+            table = self.window["-BLE_TABLE_DEVICES-"]
+            table_widget = table.Widget
+            table_widget.unbind("<<TreeviewSelect>>")
+            ############## End of Workaround ################
             select_rows = None
             if self.i_selected_dev is not None:
                 select_rows = [self.i_selected_dev]
             self.window["-BLE_TABLE_DEVICES-"].update(
                 values=ble_dev_data, select_rows=select_rows
             )
-            self.user_event = False
+            ############### Workaround ######################
+            selections = table_widget.selection()
+            table.SelectedRows = [int(x) - 1 for x in selections]
+            self.window.refresh()
+            table_widget.bind("<<TreeviewSelect>>", table._treeview_selected)
+            ############## End of Workaround ################
             self.update_advertisement_info()
 
     def update_advertisement_info(self):
@@ -90,6 +93,14 @@ class BLExplorerGUI:
                 )
             else:
                 self.window["-ADV_UUIDS-"].update(values=[])
+
+    def clear_scan_data(self):
+        self.i_selected_dev = None
+        self.window["-BLE_TABLE_DEVICES-"].update(values=[])
+        self.window["-ADV_NAME-"].update(value="")
+        self.window["-ADV_RSSI-"].update(value="")
+        self.window["-ADV_UUIDS-"].update(values=[""], value="")
+        self.window["-ADV_MFR_ID-"].update(value="")
 
     def create_ble_table_data(self, ble_devices):
         data = [
