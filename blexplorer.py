@@ -46,8 +46,9 @@ class BLExplorerGUI:
                 self.ble.start_scan()
                 self.window["-BLE_SCAN-"].update(text="Stop Scanning")
         elif event == "-BLE_TABLE_DEVICES-":
-            self.i_selected_dev = values[event][0]
-            self.update_advertisement_info()
+            if len(values[event]) > 0:
+                self.i_selected_dev = values[event][0]
+                self.update_advertisement_info()
 
     def update(self):
         # update scan info
