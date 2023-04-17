@@ -18,7 +18,7 @@ class BLExplorerGUI:
             "BLExplorer",
             self.layout,
             resizable=True,
-            size=(800, 600),
+            size=(1024, 600),
             font=("Helvetica", 12),
             icon=os.path.join("resources", "blexplorer.ico"),
         )
@@ -41,13 +41,23 @@ class BLExplorerGUI:
                 self.ble.stop_scan()
                 self.window["-BLE_SCAN-"].update(text="Scan")
             else:
+                self.window["-BLE_TABLE_DEVICES-"].update(values=[])
                 self.ble.start_scan()
                 self.window["-BLE_SCAN-"].update(text="Stop Scanning")
 
     def update(self):
-        if self.ble.has_found_new_device():
-            ble_dev_data, _ = self.ble.get_found_devices()
+        # update scan info
+        self.update_scan()
+
+    def update_scan(self):
+        if self.ble.has_found_device():
+            ble_devices = self.ble.get_found_devices()
+            ble_dev_data = self.create_ble_table_data(ble_devices)
             self.window["-BLE_TABLE_DEVICES-"].update(values=ble_dev_data)
+
+    def create_ble_table_data(self, ble_devices):
+        data = [[dev["name"], dev["address"], dev["rssi"]] for dev in ble_devices]
+        return data
 
     def _create_layout(self):
         font = "Helvetica"
@@ -57,101 +67,127 @@ class BLExplorerGUI:
             ),
             sg.Text("BLExplorer", font=(font, 48)),
         ]
+        ble_cntl_buttons = [
+            sg.Button("Scan", key="-BLE_SCAN-"),
+            sg.Button("Connect", disabled=True, key="-BLE_CONNECT-"),
+        ]
         layout_buttons = [
             sg.Frame(
                 "Controls",
-                [
-                    [
-                        sg.Button("Scan", key="-BLE_SCAN-"),
-                        sg.Button(
-                            "Connect", disabled=True, key="-BLE_CONNECT-"
-                        ),
-                    ],
-                ],
+                [ble_cntl_buttons],
                 font=(font, 14),
                 expand_x=True,
             )
         ]
-        ble_dev_data, ble_dev_data_cols = self.ble.get_found_devices()
+        ble_dev_data_cols = ["Name", "Address", "RSSI (dBm)"]
         ble_dev_table = sg.Table(
-            values=ble_dev_data,
+            values=[],
             headings=ble_dev_data_cols,
             justification="center",
             font=(font, 12),
             num_rows=5,
             expand_x=True,
-            row_height=20,
-            max_col_width=25,
+            row_height=30,
+            max_col_width=35,
+            col_widths=[15, 15, 9],
+            auto_size_columns=False,
             background_color="SteelBlue4",
             alternating_row_color="SteelBlue3",
             key="-BLE_TABLE_DEVICES-",
         )
-        ble_adv_info = [
-            [sg.Text("ADV INFO 1                                 ")],
-            [sg.Text("ADV INFO 2                                 ")],
-            [sg.Text("ADV INFO 3                                 ")],
+        ble_adv_info_labels = sg.Column(
+            [
+                [sg.Text("Local name ", key="-ADV_NAME_LABEL-")],
+                [sg.Text("RSSI (dBm)", key="-ADV_RSSI_LABEL-")],
+                [sg.Text("Interval (ms)", key="-ADV_INT_LABEL-")],
+                [sg.Text("Manufacturer ID", key="-ADV_MFR_ID_LABEL-")],
+                [sg.Text("Service UUIDs", key="-ADV_UUIDS_LABEL-")],
+            ]
+        )
+        ble_adv_info_vals = sg.Column(
+            [
+                [
+                    sg.Input(
+                        "NAME",
+                        readonly=True,
+                        size=(15,),
+                        key="-ADV_NAME-",
+                    )
+                ],
+                [
+                    sg.Input(
+                        "RSSI",
+                        readonly=True,
+                        size=(15,),
+                        key="-ADV_RSSI-",
+                    )
+                ],
+                [
+                    sg.Input(
+                        "ADV INT",
+                        readonly=True,
+                        size=(15,),
+                        key="-ADV_INT-",
+                    )
+                ],
+                [
+                    sg.Input(
+                        "0xDEAD",
+                        readonly=True,
+                        size=(15, 1),
+                        key="-ADV_MFR_ID-",
+                    )
+                ],
+                [
+                    sg.Combo(
+                        [""],
+                        default_value="",
+                        size=(15,),
+                        key="-ADV_UUIDS-",
+                    )
+                ],
+            ]
+        )
+        ble_adv_info_layout = [
+            [
+                ble_adv_info_labels,
+                ble_adv_info_vals,
+            ]
         ]
-        ble_adv_info_layout = sg.Frame(
-            "Advertisement info", ble_adv_info, font=(font, 14)
+        ble_adv_info_frame = sg.Frame(
+            "Advertisement info", ble_adv_info_layout, font=(font, 14)
         )
         layout_advertisement = [
             [
                 sg.Column(
                     [[ble_dev_table]], justification="left", expand_x=True
                 ),
-                sg.Column([[ble_adv_info_layout]], justification="right"),
+                sg.Column([[ble_adv_info_frame]], justification="right"),
             ]
         ]
+        tabs = [
+            sg.Tab(
+                f"Dev{i}",
+                [[sg.Text(f"Connection {i}")]],
+                visible=False,
+                key=f"-CONNECTED_DEVICE_{i}-",
+            )
+            for i in range(1, 6)
+        ]
+        tab_group = sg.TabGroup(
+            [tabs],
+            expand_x=True,
+            key="-CONN_DEVS_TABS-",
+        )
         layout_connections = [
             sg.Frame(
                 "Connected devices",
                 [
                     [
                         sg.Column(
-                            [
-                                [
-                                    sg.TabGroup(
-                                        [
-                                            [
-                                                sg.Tab(
-                                                    "Dev1",
-                                                    [[sg.Text("Connection 1")]],
-                                                    visible=False,
-                                                    key="-CONNECTED_DEVICE_1-",
-                                                ),
-                                                sg.Tab(
-                                                    "Dev2",
-                                                    [[sg.Text("Connection 2")]],
-                                                    visible=False,
-                                                    key="-CONNECTED_DEVICE_2-",
-                                                ),
-                                                sg.Tab(
-                                                    "Dev3",
-                                                    [[sg.Text("Connection 3")]],
-                                                    visible=False,
-                                                    key="-CONNECTED_DEVICE_3-",
-                                                ),
-                                                sg.Tab(
-                                                    "Dev4",
-                                                    [[sg.Text("Connection 4")]],
-                                                    visible=False,
-                                                    key="-CONNECTED_DEVICE_4-",
-                                                ),
-                                                sg.Tab(
-                                                    "Dev5",
-                                                    [[sg.Text("Connection 5")]],
-                                                    visible=False,
-                                                    key="-CONNECTED_DEVICE_5-",
-                                                ),
-                                            ]
-                                        ],
-                                        expand_x=True,
-                                        key="-CONNECTED_DEVICES_TABS-",
-                                    )
-                                ]
-                            ],
+                            [[tab_group]],
                             visible=False,
-                            key="-CONNECTED_DEVICES_CONTAINER-",
+                            key="-CONN_DEVS_CONTAINER-",
                         )
                     ],
                     [
@@ -165,7 +201,7 @@ class BLExplorerGUI:
                                 ]
                             ],
                             justification="center",
-                            key="-NO_CONNECTED_DEVICES-",
+                            key="-NO_CONN_DEVS_CONTAINER-",
                         )
                     ],
                 ],

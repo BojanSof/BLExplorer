@@ -1,4 +1,5 @@
 import asyncio
+import datetime
 import threading
 
 from bleak import BleakScanner
@@ -7,7 +8,7 @@ from bleak import BleakScanner
 class Ble:
     def __init__(self):
         self.found_devices = {}
-        self.found_new_device = False
+        self.found_device = False
         self.scanning = False
         self.event_loop = asyncio.new_event_loop()
         self.event_loop_thread = threading.Thread(
@@ -22,6 +23,8 @@ class Ble:
         self.event_loop_thread.join()
 
     def start_scan(self):
+        # clear previously found devices
+        self.found_devices = {}
         self.scan_stop_event = asyncio.Event()
         asyncio.run_coroutine_threadsafe(
             self.bluetooth_scan(self.scan_stop_event), self.event_loop
@@ -36,26 +39,40 @@ class Ble:
     def is_scanning(self):
         return self.scanning
     
-    def has_found_new_device(self):
-        ret_val = self.found_new_device
+    def has_found_device(self):
+        ret_val = self.found_device
         return ret_val
 
     def get_found_devices(self):
-        columns_names = ["Name", "Address", "RSSI"]
-        columns = []
-        for address, (device, advertisement_data) in self.found_devices.items():
-            columns.append([device.name, address, advertisement_data.rssi])
-        return columns, columns_names
+        devices = []
+        for address, (device, advertisement_data, interval) in self.found_devices.items():
+            dev = {
+                "name": advertisement_data.local_name,
+                "address": address,
+                "rssi": advertisement_data.rssi,
+                "uuids": advertisement_data.service_uuids,
+                "interval": interval,
+                "dev": device
+            }
+            devices.append(dev)
+        return devices
 
     async def bluetooth_scan(self, stop_event):
         async with BleakScanner(
-            detection_callback=self._detection_callback
+            detection_callback=self._detection_callback,
         ) as scanner:
             await stop_event.wait()
 
     def _detection_callback(self, device, advertisement_data):
-        self.found_devices[device.address] = (device, advertisement_data)
-        self.found_new_device = True
+        if advertisement_data.local_name is not None:
+            timestamp = datetime.datetime.timestamp(datetime.datetime.now())
+            if device.address in self.found_devices:
+                old_timestamp = self.found_devices[device.address][2]
+                interval = int(round((timestamp + old_timestamp) * 1000))
+            else:
+                interval = -timestamp  # negative means don't use this data
+            self.found_devices[device.address] = (device, advertisement_data, interval)
+            self.found_device = True
     
     def _asyncloop(self):
         asyncio.set_event_loop(self.event_loop)
