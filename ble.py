@@ -15,7 +15,6 @@ class Ble:
             target=self._asyncloop, daemon=True
         )
         self.event_loop_thread.start()
-        self.found_new_device_lock = threading.Lock()
 
     def __del__(self):
         if self.scanning:
@@ -35,24 +34,27 @@ class Ble:
         if self.scanning:
             self.event_loop.call_soon_threadsafe(self.scan_stop_event.set)
             self.scanning = False
-    
+
     def is_scanning(self):
         return self.scanning
-    
+
     def has_found_device(self):
         ret_val = self.found_device
+        self.found_device = False
         return ret_val
 
     def get_found_devices(self):
         devices = []
-        for address, (device, advertisement_data, interval) in self.found_devices.items():
+        for address, (
+            device,
+            advertisement_data,
+        ) in self.found_devices.items():
             dev = {
                 "name": advertisement_data.local_name,
                 "address": address,
                 "rssi": advertisement_data.rssi,
                 "uuids": advertisement_data.service_uuids,
-                "interval": interval,
-                "dev": device
+                "dev": device,
             }
             devices.append(dev)
         return devices
@@ -65,15 +67,12 @@ class Ble:
 
     def _detection_callback(self, device, advertisement_data):
         if advertisement_data.local_name is not None:
-            timestamp = datetime.datetime.timestamp(datetime.datetime.now())
-            if device.address in self.found_devices:
-                old_timestamp = self.found_devices[device.address][2]
-                interval = int(round((timestamp + old_timestamp) * 1000))
-            else:
-                interval = -timestamp  # negative means don't use this data
-            self.found_devices[device.address] = (device, advertisement_data, interval)
+            self.found_devices[device.address] = (
+                device,
+                advertisement_data,
+            )
             self.found_device = True
-    
+
     def _asyncloop(self):
         asyncio.set_event_loop(self.event_loop)
         self.event_loop.run_forever()

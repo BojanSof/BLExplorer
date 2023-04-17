@@ -12,6 +12,8 @@ class BLExplorerGUI:
         sg.theme("DarkTeal12")
         self.layout = self._create_layout()
         self.running = False
+        self.i_selected_dev = None
+        self.user_event = True
 
     def run(self):
         self.window = sg.Window(
@@ -24,7 +26,7 @@ class BLExplorerGUI:
         )
         self.running = True
         while self.running:
-            event, values = self.window.read(timeout=20)
+            event, values = self.window.read(timeout=100)
             # process event
             self.process_event(event, values)
             if not self.running:
@@ -42,8 +44,19 @@ class BLExplorerGUI:
                 self.window["-BLE_SCAN-"].update(text="Scan")
             else:
                 self.window["-BLE_TABLE_DEVICES-"].update(values=[])
+                self.i_selected_dev = None
                 self.ble.start_scan()
                 self.window["-BLE_SCAN-"].update(text="Stop Scanning")
+        elif event == "-BLE_TABLE_DEVICES-":
+            # NOTE: there is bug (maybe in PSG) that fires two Table events
+            # but one doesn't contain any value
+            # may be connected with the table update call
+            if len(values[event]) > 0:
+                if self.user_event:
+                    self.i_selected_dev = values[event][0]
+                    self.update_advertisement_info()
+                else:
+                    self.user_event = True
 
     def update(self):
         # update scan info
@@ -53,10 +66,35 @@ class BLExplorerGUI:
         if self.ble.has_found_device():
             ble_devices = self.ble.get_found_devices()
             ble_dev_data = self.create_ble_table_data(ble_devices)
-            self.window["-BLE_TABLE_DEVICES-"].update(values=ble_dev_data)
+            select_rows = None
+            if self.i_selected_dev is not None:
+                select_rows = [self.i_selected_dev]
+            self.window["-BLE_TABLE_DEVICES-"].update(
+                values=ble_dev_data, select_rows=select_rows
+            )
+            self.user_event = False
+            self.update_advertisement_info()
+
+    def update_advertisement_info(self):
+        if self.i_selected_dev is not None:
+            dev = self.ble.get_found_devices()[self.i_selected_dev]
+            self.window["-ADV_NAME-"].update(value=dev["name"])
+            self.window["-ADV_RSSI-"].update(value=f"{dev['rssi']}")
+            if len(dev["uuids"]) > 0:
+                old_uuid_val = self.window["-ADV_UUIDS-"].get()
+                new_uuid_val = dev["uuids"][0]
+                if old_uuid_val in dev["uuids"]:
+                    new_uuid_val = old_uuid_val
+                self.window["-ADV_UUIDS-"].update(
+                    values=dev["uuids"], value=new_uuid_val
+                )
+            else:
+                self.window["-ADV_UUIDS-"].update(values=[])
 
     def create_ble_table_data(self, ble_devices):
-        data = [[dev["name"], dev["address"], dev["rssi"]] for dev in ble_devices]
+        data = [
+            [dev["name"], dev["address"], dev["rssi"]] for dev in ble_devices
+        ]
         return data
 
     def _create_layout(self):
@@ -93,13 +131,13 @@ class BLExplorerGUI:
             auto_size_columns=False,
             background_color="SteelBlue4",
             alternating_row_color="SteelBlue3",
+            enable_events=True,
             key="-BLE_TABLE_DEVICES-",
         )
         ble_adv_info_labels = sg.Column(
             [
                 [sg.Text("Local name ", key="-ADV_NAME_LABEL-")],
                 [sg.Text("RSSI (dBm)", key="-ADV_RSSI_LABEL-")],
-                [sg.Text("Interval (ms)", key="-ADV_INT_LABEL-")],
                 [sg.Text("Manufacturer ID", key="-ADV_MFR_ID_LABEL-")],
                 [sg.Text("Service UUIDs", key="-ADV_UUIDS_LABEL-")],
             ]
@@ -108,7 +146,7 @@ class BLExplorerGUI:
             [
                 [
                     sg.Input(
-                        "NAME",
+                        "",
                         readonly=True,
                         size=(15,),
                         key="-ADV_NAME-",
@@ -116,7 +154,7 @@ class BLExplorerGUI:
                 ],
                 [
                     sg.Input(
-                        "RSSI",
+                        "",
                         readonly=True,
                         size=(15,),
                         key="-ADV_RSSI-",
@@ -124,15 +162,7 @@ class BLExplorerGUI:
                 ],
                 [
                     sg.Input(
-                        "ADV INT",
-                        readonly=True,
-                        size=(15,),
-                        key="-ADV_INT-",
-                    )
-                ],
-                [
-                    sg.Input(
-                        "0xDEAD",
+                        "",
                         readonly=True,
                         size=(15, 1),
                         key="-ADV_MFR_ID-",
@@ -142,7 +172,7 @@ class BLExplorerGUI:
                     sg.Combo(
                         [""],
                         default_value="",
-                        size=(15,),
+                        size=(33,),
                         key="-ADV_UUIDS-",
                     )
                 ],
