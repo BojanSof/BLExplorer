@@ -1,8 +1,16 @@
 import asyncio
-import datetime
+import enum
 import threading
+import queue
 
 from bleak import BleakScanner, BleakClient
+
+
+class ConnectionStatus(enum.Enum):
+    Idle = enum.auto()
+    Connecting = enum.auto()
+    Connected = enum.auto()
+    Disconnecting = enum.auto()
 
 
 class Ble:
@@ -12,7 +20,8 @@ class Ble:
         self.scanning = False
         self.connected_devices = {}
         self.disconnect_events = {}
-        self.waiting_change_devices = {}
+        self.status_queue = queue.Queue()
+        self.status_devices = {}
         self.event_loop = asyncio.new_event_loop()
         self.event_loop_thread = threading.Thread(
             target=self._asyncloop, daemon=True
@@ -63,7 +72,14 @@ class Ble:
         return devices
 
     def connect(self, dev):
-        self.waiting_change_devices[dev.address] = True
+        self.status_devices[dev.address] = ConnectionStatus.Connecting
+        try:
+            self.status_queue.put_nowait(
+                (dev.address, ConnectionStatus.Connecting)
+            )
+        except queue.Full:
+            # TODO better handling of this case
+            pass
         self.disconnect_events[dev.address] = asyncio.Event()
         asyncio.run_coroutine_threadsafe(
             self.bluetooth_connect(dev, self.disconnect_events[dev.address]),
@@ -71,7 +87,14 @@ class Ble:
         )
 
     def disconnect(self, dev_address):
-        self.waiting_change_devices[dev_address] = True
+        self.status_devices[dev_address] = ConnectionStatus.Disconnecting
+        try:
+            self.status_queue.put_nowait(
+                (dev_address, ConnectionStatus.Disconnecting)
+            )
+        except queue.Full:
+            # TODO better handling of this case
+            pass
         self.event_loop.call_soon_threadsafe(
             self.disconnect_events[dev_address].set
         )
@@ -79,19 +102,22 @@ class Ble:
     def is_connected(self, dev_address):
         return dev_address in self.connected_devices
 
-    def is_waiting_connection_change(self, dev_address):
-        if dev_address in self.waiting_change_devices:
-            return self.waiting_change_devices[dev_address]
+    def get_status(self, dev_address):
+        if dev_address in self.status_devices:
+            return self.status_devices[dev_address]
         else:
-            return False
-    
-    def is_any_waiting_connection_change(self):
-        return any(self.waiting_change_devices)
+            return None
+
+    def get_status_event(self):
+        try:
+            return self.status_queue.get_nowait()
+        except queue.Empty:
+            return None
 
     async def bluetooth_scan(self, stop_event):
         async with BleakScanner(
             detection_callback=self._detection_callback,
-        ) as scanner:
+        ):
             await stop_event.wait()
 
     def _detection_callback(self, device, advertisement_data):
@@ -108,12 +134,26 @@ class Ble:
             self._disconnect_callback,
         ) as client:
             self.connected_devices[device.address] = client
-            self.waiting_change_devices[device.address] = False
+            self.status_devices[device.address] = ConnectionStatus.Connected
+            try:
+                self.status_queue.put_nowait(
+                    (device.address, ConnectionStatus.Connected)
+                )
+            except queue.Full:
+                # TODO better handling of this case
+                pass
             await disconnect_event.wait()
 
     def _disconnect_callback(self, client):
         del self.connected_devices[client.address]
-        del self.waiting_change_devices[client.address]
+        del self.status_devices[client.address]
+        try:
+            self.status_queue.put_nowait(
+                (client.address, ConnectionStatus.Idle)
+            )
+        except queue.Full:
+            # TODO better handling of this case
+            pass
 
     def _asyncloop(self):
         asyncio.set_event_loop(self.event_loop)

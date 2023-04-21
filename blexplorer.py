@@ -1,9 +1,8 @@
-import asyncio
 import os
 
 import PySimpleGUI as sg
 
-from ble import Ble
+from ble import Ble, ConnectionStatus
 
 
 class BLExplorerGUI:
@@ -49,7 +48,31 @@ class BLExplorerGUI:
             if len(values[event]) > 0:
                 self.i_selected_dev = values[event][0]
                 self.update_advertisement_info()
-                self.window["-BLE_CONNECT-"].update(disabled=False)
+                ble_devices = self.ble.get_found_devices()
+                ble_selected_dev_status = self.ble.get_status(
+                    ble_devices[self.i_selected_dev]["address"]
+                )
+                if ble_selected_dev_status is not None:
+                    if ble_selected_dev_status == ConnectionStatus.Connecting:
+                        self.window["-BLE_CONNECT-"].update(
+                            text="Connect", disabled=True
+                        )
+                    elif (
+                        ble_selected_dev_status
+                        == ConnectionStatus.Disconnecting
+                    ):
+                        self.window["-BLE_CONNECT-"].update(
+                            text="Disconnect", disabled=True
+                        )
+                    elif ble_selected_dev_status == ConnectionStatus.Connected:
+                        self.window["-BLE_CONNECT-"].update(
+                            text="Disconnect", disabled=False
+                        )
+                else:
+                    self.window["-BLE_CONNECT-"].update(
+                        text="Connect", disabled=False
+                    )
+
         elif event == "-BLE_CONNECT-":
             if self.i_selected_dev is not None:
                 ble_devices = self.ble.get_found_devices()
@@ -71,23 +94,23 @@ class BLExplorerGUI:
             ble_dev_data = self.create_ble_table_data(ble_devices)
             # workaround not to fire event when updating table
             # taken from: https://github.com/PySimpleGUI/PySimpleGUI/issues/5129
-            ############### Workaround ######################
+            # ############## Workaround ######################
             table = self.window["-BLE_TABLE_DEVICES-"]
             table_widget = table.Widget
             table_widget.unbind("<<TreeviewSelect>>")
-            ############## End of Workaround ################
+            # ############# End of Workaround ################
             select_rows = None
             if self.i_selected_dev is not None:
                 select_rows = [self.i_selected_dev]
             self.window["-BLE_TABLE_DEVICES-"].update(
                 values=ble_dev_data, select_rows=select_rows
             )
-            ############### Workaround ######################
+            # ############## Workaround ######################
             selections = table_widget.selection()
             table.SelectedRows = [int(x) - 1 for x in selections]
             self.window.refresh()
             table_widget.bind("<<TreeviewSelect>>", table._treeview_selected)
-            ############## End of Workaround ################
+            # ############# End of Workaround ################
             self.update_advertisement_info()
 
     def update_advertisement_info(self):
@@ -107,16 +130,18 @@ class BLExplorerGUI:
                 self.window["-ADV_UUIDS-"].update(values=[])
 
     def update_connections(self):
-        if self.i_selected_dev is not None:
+        status = self.ble.get_status_event()
+        if status is not None and self.i_selected_dev is not None:
+            status_address, connection_status = status
             ble_devices = self.ble.get_found_devices()
             ble_selected_dev_addr = ble_devices[self.i_selected_dev]["address"]
-            if not self.ble.is_waiting_connection_change(ble_selected_dev_addr):
-                # TODO don't update button all the time
-                if self.ble.is_connected(ble_selected_dev_addr):
-                    self.window["-BLE_CONNECT-"].update(
-                        text="Disconnect", disabled=False
-                    )
-                else:
+            if status_address == ble_selected_dev_addr:
+                if connection_status == ConnectionStatus.Connected:
+                    if self.ble.is_connected(ble_selected_dev_addr):
+                        self.window["-BLE_CONNECT-"].update(
+                            text="Disconnect", disabled=False
+                        )
+                elif connection_status == ConnectionStatus.Idle:
                     self.window["-BLE_CONNECT-"].update(
                         text="Connect", disabled=False
                     )
