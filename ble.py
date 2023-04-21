@@ -2,7 +2,7 @@ import asyncio
 import datetime
 import threading
 
-from bleak import BleakScanner
+from bleak import BleakScanner, BleakClient
 
 
 class Ble:
@@ -10,6 +10,9 @@ class Ble:
         self.found_devices = {}
         self.found_device = False
         self.scanning = False
+        self.connected_devices = {}
+        self.disconnect_events = {}
+        self.waiting_change_devices = {}
         self.event_loop = asyncio.new_event_loop()
         self.event_loop_thread = threading.Thread(
             target=self._asyncloop, daemon=True
@@ -59,6 +62,32 @@ class Ble:
             devices.append(dev)
         return devices
 
+    def connect(self, dev):
+        self.waiting_change_devices[dev.address] = True
+        self.disconnect_events[dev.address] = asyncio.Event()
+        asyncio.run_coroutine_threadsafe(
+            self.bluetooth_connect(dev, self.disconnect_events[dev.address]),
+            self.event_loop,
+        )
+
+    def disconnect(self, dev_address):
+        self.waiting_change_devices[dev_address] = True
+        self.event_loop.call_soon_threadsafe(
+            self.disconnect_events[dev_address].set
+        )
+
+    def is_connected(self, dev_address):
+        return dev_address in self.connected_devices
+
+    def is_waiting_connection_change(self, dev_address):
+        if dev_address in self.waiting_change_devices:
+            return self.waiting_change_devices[dev_address]
+        else:
+            return False
+    
+    def is_any_waiting_connection_change(self):
+        return any(self.waiting_change_devices)
+
     async def bluetooth_scan(self, stop_event):
         async with BleakScanner(
             detection_callback=self._detection_callback,
@@ -72,6 +101,19 @@ class Ble:
                 advertisement_data,
             )
             self.found_device = True
+
+    async def bluetooth_connect(self, device, disconnect_event):
+        async with BleakClient(
+            device,
+            self._disconnect_callback,
+        ) as client:
+            self.connected_devices[device.address] = client
+            self.waiting_change_devices[device.address] = False
+            await disconnect_event.wait()
+
+    def _disconnect_callback(self, client):
+        del self.connected_devices[client.address]
+        del self.waiting_change_devices[client.address]
 
     def _asyncloop(self):
         asyncio.set_event_loop(self.event_loop)

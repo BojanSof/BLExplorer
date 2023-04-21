@@ -49,10 +49,21 @@ class BLExplorerGUI:
             if len(values[event]) > 0:
                 self.i_selected_dev = values[event][0]
                 self.update_advertisement_info()
+                self.window["-BLE_CONNECT-"].update(disabled=False)
+        elif event == "-BLE_CONNECT-":
+            if self.i_selected_dev is not None:
+                ble_devices = self.ble.get_found_devices()
+                ble_selected_dev = ble_devices[self.i_selected_dev]
+                if self.ble.is_connected(ble_selected_dev["address"]):
+                    self.ble.disconnect(ble_selected_dev["address"])
+                else:
+                    self.ble.connect(ble_selected_dev["dev"])
+                self.window["-BLE_CONNECT-"].update(disabled=True)
 
     def update(self):
         # update scan info
         self.update_scan()
+        self.update_connections()
 
     def update_scan(self):
         if self.ble.has_found_device():
@@ -94,6 +105,21 @@ class BLExplorerGUI:
                 )
             else:
                 self.window["-ADV_UUIDS-"].update(values=[])
+
+    def update_connections(self):
+        if self.i_selected_dev is not None:
+            ble_devices = self.ble.get_found_devices()
+            ble_selected_dev_addr = ble_devices[self.i_selected_dev]["address"]
+            if not self.ble.is_waiting_connection_change(ble_selected_dev_addr):
+                # TODO don't update button all the time
+                if self.ble.is_connected(ble_selected_dev_addr):
+                    self.window["-BLE_CONNECT-"].update(
+                        text="Disconnect", disabled=False
+                    )
+                else:
+                    self.window["-BLE_CONNECT-"].update(
+                        text="Connect", disabled=False
+                    )
 
     def clear_scan_data(self):
         self.i_selected_dev = None
@@ -142,7 +168,6 @@ class BLExplorerGUI:
             col_widths=[15, 15, 9],
             auto_size_columns=False,
             background_color="SteelBlue4",
-            alternating_row_color="SteelBlue3",
             enable_events=True,
             key="-BLE_TABLE_DEVICES-",
         )
@@ -184,6 +209,7 @@ class BLExplorerGUI:
                     sg.Combo(
                         [""],
                         default_value="",
+                        readonly=True,
                         size=(33,),
                         key="-ADV_UUIDS-",
                     )
