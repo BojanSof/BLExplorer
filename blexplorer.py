@@ -141,7 +141,7 @@ class BLExplorerGUI:
                         self.window["-BLE_CONNECT-"].update(
                             text="Disconnect", disabled=False
                         )
-                elif connection_status == ConnectionStatus.Idle:
+                elif connection_status == ConnectionStatus.Disconnected:
                     self.window["-BLE_CONNECT-"].update(
                         text="Connect", disabled=False
                     )

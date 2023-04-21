@@ -7,7 +7,7 @@ from bleak import BleakScanner, BleakClient
 
 
 class ConnectionStatus(enum.Enum):
-    Idle = enum.auto()
+    Disconnected = enum.auto()
     Connecting = enum.auto()
     Connected = enum.auto()
     Disconnecting = enum.auto()
@@ -149,7 +149,7 @@ class Ble:
         del self.status_devices[client.address]
         try:
             self.status_queue.put_nowait(
-                (client.address, ConnectionStatus.Idle)
+                (client.address, ConnectionStatus.Disconnected)
             )
         except queue.Full:
             # TODO better handling of this case
