@@ -114,6 +114,27 @@ class Ble:
         except queue.Empty:
             return None
 
+    def get_services_and_characteristics(self, dev_address):
+        if not self.is_connected(dev_address):
+            services_collection = None
+        else:
+            services_collection = {}
+            dev = self.connected_devices[dev_address]
+            for _, service in dev.services.services.items():
+                services_collection[service.uuid] = {
+                    "name": service.description,
+                    "service": service
+                }
+                service_characteristics = {}
+                for characteristic in service.characteristics:
+                    service_characteristics[characteristic.uuid] = {
+                        "name": characteristic.description,
+                        "properties": characteristic.properties,
+                        "characteristic": characteristic
+                    }
+                services_collection["characteristics"] = service_characteristics
+        return services_collection
+
     async def bluetooth_scan(self, stop_event):
         async with BleakScanner(
             detection_callback=self._detection_callback,
