@@ -5,6 +5,11 @@ import PySimpleGUI as sg
 from ble import Ble, ConnectionStatus
 
 
+MAX_NUM_DEVICES = 1  # maximum number of connected devices
+MAX_NUM_SERVICES = 3  # maximum number of services per device
+MAX_NUM_CHARACTERISTICS = 3  # maximum number of characteristics per service
+
+
 class BLExplorerGUI:
     def __init__(self):
         self.ble = Ble()
@@ -72,7 +77,6 @@ class BLExplorerGUI:
                     self.window["-BLE_CONNECT-"].update(
                         text="Connect", disabled=False
                     )
-
         elif event == "-BLE_CONNECT-":
             if self.i_selected_dev is not None:
                 ble_devices = self.ble.get_found_devices()
@@ -82,6 +86,17 @@ class BLExplorerGUI:
                 else:
                     self.ble.connect(ble_selected_dev["dev"])
                 self.window["-BLE_CONNECT-"].update(disabled=True)
+        elif "EXPAND" in event:
+            section_key = event.split("--")[0] + "-"
+            section_expand_key = event.split("--")[0] + "--EXPAND_BUTTON-"
+            self.window[section_key].update(
+                visible=not self.window[section_key].visible
+            )
+            self.window[section_expand_key].update(
+                self.window[section_key].metadata[0]
+                if self.window[section_key].visible
+                else self.window[section_key].metadata[1]
+            )
 
     def update(self):
         # update scan info
@@ -261,11 +276,24 @@ class BLExplorerGUI:
         tabs = [
             sg.Tab(
                 f"Dev{i}",
-                [[sg.Text(f"Connection {i}")]],
-                visible=False,
+                [
+                    [
+                        sg.Column(
+                            [
+                                [self._create_service_layout(f"-SERVICE{i}-")]
+                                for i in range(1, MAX_NUM_SERVICES + 1)
+                            ],
+                            scrollable=True,
+                            vertical_scroll_only=True,
+                            expand_x=True,
+                        )
+                    ]
+                ],
+                expand_x=True,
+                visible=True,
                 key=f"-CONNECTED_DEVICE_{i}-",
             )
-            for i in range(1, 6)
+            for i in range(1, MAX_NUM_DEVICES + 1)
         ]
         tab_group = sg.TabGroup(
             [tabs],
@@ -279,7 +307,8 @@ class BLExplorerGUI:
                     [
                         sg.Column(
                             [[tab_group]],
-                            visible=False,
+                            expand_x=True,
+                            visible=True,
                             key="-CONN_DEVS_CONTAINER-",
                         )
                     ],
@@ -294,6 +323,7 @@ class BLExplorerGUI:
                                 ]
                             ],
                             justification="center",
+                            visible=False,
                             key="-NO_CONN_DEVS_CONTAINER-",
                         )
                     ],
@@ -309,6 +339,137 @@ class BLExplorerGUI:
             layout_connections,
         ]
         return layout
+
+    def _create_service_layout(
+        self, key, section_arrows=(sg.SYMBOL_DOWN, sg.SYMBOL_UP)
+    ):
+        service_layout = [
+            [
+                self._create_characteristics_layout(
+                    key + f"CHARACTERISTIC{i}-", section_arrows
+                )
+            ]
+            for i in range(1, MAX_NUM_CHARACTERISTICS + 1)
+        ]
+        service_section = sg.Column(
+            [
+                [
+                    sg.Text(
+                        (section_arrows[0]),
+                        enable_events=True,
+                        k=key + "-EXPAND_BUTTON-",
+                    ),
+                    sg.Text(
+                        "Service",
+                        enable_events=True,
+                        key=key + "-EXPAND_TITLE-",
+                    ),
+                ],
+                [
+                    sg.pin(
+                        sg.Column(
+                            service_layout,
+                            key=key,
+                            visible=True,  # TODO CHANGE
+                            metadata=section_arrows,
+                        )
+                    )
+                ],
+            ],
+            expand_x=True,
+        )
+        return service_section
+
+    def _create_characteristics_layout(
+        self, key, section_arrows=(sg.SYMBOL_DOWN, sg.SYMBOL_UP)
+    ):
+        characteristic_labels = sg.Column(
+            [
+                [sg.Text("UUID", key=key + "-UUID_LABEL-")],
+                [sg.Text("Properties", key=key + "-PROPERTIES_LABEL-")],
+                [sg.Text("Value", key=key + "-VALUE_LABEL-")],
+                [sg.Text("Descriptors", key=key + "-DESCRIPTORS_LABEL-")],
+            ]
+        )
+        characteristic_vals = sg.Column(
+            [
+                [
+                    sg.Input(
+                        "",
+                        readonly=True,
+                        size=(15,),
+                        key=key + "-UUID-",
+                    )
+                ],
+                [
+                    sg.Input(
+                        "",
+                        readonly=True,
+                        size=(15,),
+                        key=key + "-PROPERTIES-",
+                    )
+                ],
+                [
+                    sg.Input(
+                        "",
+                        readonly=True,
+                        size=(15,),
+                        key=key + "-VALUE-",
+                    )
+                ],
+                [
+                    sg.Combo(
+                        [""],
+                        default_value="",
+                        readonly=True,
+                        size=(15,),
+                        key=key + "-DESCRIPTORS-",
+                    )
+                ],
+            ]
+        )
+        characteristic_layout = [[characteristic_labels, characteristic_vals]]
+        characteristic_buttons = sg.Column(
+            [
+                [
+                    sg.Button("↓", key=key + "-READ-"),
+                    sg.Button("↑", key=key + "-WRITE-"),
+                    sg.Button("↑↓", key=key + "-INDICATE-"),
+                    sg.Button("↓↓", key=key + "-NOTIFY-"),
+                ]
+            ],
+            element_justification="right",
+            pad=((50, 0), (0, 0)),
+        )
+        characteristic_section = sg.Column(
+            [
+                [
+                    sg.Text(
+                        (section_arrows[0]),
+                        enable_events=True,
+                        k=key + "-EXPAND_BUTTON-",
+                    ),
+                    sg.Text(
+                        "Characteristic",
+                        enable_events=True,
+                        key=key + "-EXPAND_TITLE-",
+                    ),
+                    characteristic_buttons,
+                ],
+                [
+                    sg.pin(
+                        sg.Column(
+                            characteristic_layout,
+                            key=key,
+                            visible=True,  # TODO CHANGE
+                            metadata=section_arrows,
+                        )
+                    )
+                ],
+            ],
+            expand_x=True,
+        )
+        return characteristic_section
 
 
 if __name__ == "__main__":
