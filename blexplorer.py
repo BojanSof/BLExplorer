@@ -5,7 +5,7 @@ import PySimpleGUI as sg
 from ble import Ble, ConnectionStatus
 
 
-MAX_NUM_DEVICES = 1  # maximum number of connected devices
+MAX_NUM_DEVICES = 2  # maximum number of connected devices
 MAX_NUM_SERVICES = 3  # maximum number of services per device
 MAX_NUM_CHARACTERISTICS = 3  # maximum number of characteristics per service
 
@@ -23,7 +23,7 @@ class BLExplorerGUI:
             "BLExplorer",
             self.layout,
             resizable=True,
-            size=(1024, 600),
+            size=(1024, 800),
             font=("Helvetica", 12),
             icon=os.path.join("resources", "blexplorer.ico"),
         )
@@ -203,7 +203,7 @@ class BLExplorerGUI:
             font=(font, 12),
             num_rows=5,
             expand_x=True,
-            row_height=30,
+            row_height=25,
             max_col_width=35,
             col_widths=[15, 15, 9],
             auto_size_columns=False,
@@ -280,16 +280,22 @@ class BLExplorerGUI:
                     [
                         sg.Column(
                             [
-                                [self._create_service_layout(f"-SERVICE{i}-")]
-                                for i in range(1, MAX_NUM_SERVICES + 1)
+                                [
+                                    self._create_service_layout(
+                                        f"-SERVICE{i}{j}-"
+                                    )
+                                ]
+                                for j in range(1, MAX_NUM_SERVICES + 1)
                             ],
                             scrollable=True,
                             vertical_scroll_only=True,
                             expand_x=True,
+                            expand_y=True,
                         )
                     ]
                 ],
                 expand_x=True,
+                expand_y=True,
                 visible=True,
                 key=f"-CONNECTED_DEVICE_{i}-",
             )
@@ -298,6 +304,7 @@ class BLExplorerGUI:
         tab_group = sg.TabGroup(
             [tabs],
             expand_x=True,
+            expand_y=True,
             key="-CONN_DEVS_TABS-",
         )
         layout_connections = [
@@ -308,6 +315,7 @@ class BLExplorerGUI:
                         sg.Column(
                             [[tab_group]],
                             expand_x=True,
+                            expand_y=True,
                             visible=True,
                             key="-CONN_DEVS_CONTAINER-",
                         )
@@ -329,6 +337,7 @@ class BLExplorerGUI:
                     ],
                 ],
                 expand_x=True,
+                expand_y=True,
                 font=(font, 14),
             )
         ]
@@ -345,13 +354,24 @@ class BLExplorerGUI:
     ):
         service_layout = [
             [
-                self._create_characteristics_layout(
-                    key + f"CHARACTERISTIC{i}-", section_arrows
+                sg.Frame(
+                    "",
+                    [
+                        [
+                            self._create_characteristics_layout(
+                                key + f"CHARACTERISTIC{i}-", section_arrows
+                            )
+                        ]
+                    ],
+                    border_width=1,
+                    expand_x=True,
+                    expand_y=True,
                 )
             ]
             for i in range(1, MAX_NUM_CHARACTERISTICS + 1)
         ]
-        service_section = sg.Column(
+        service_section = sg.Frame(
+            "",
             [
                 [
                     sg.Text(
@@ -369,14 +389,18 @@ class BLExplorerGUI:
                     sg.pin(
                         sg.Column(
                             service_layout,
-                            key=key,
-                            visible=True,  # TODO CHANGE
                             metadata=section_arrows,
+                            expand_x=True,
+                            expand_y=True,
+                            visible=True,  # TODO CHANGE
+                            key=key,
                         )
                     )
                 ],
             ],
+            border_width=2,
             expand_x=True,
+            expand_y=True,
         )
         return service_section
 
@@ -445,7 +469,7 @@ class BLExplorerGUI:
             [
                 [
                     sg.Text(
-                        (section_arrows[0]),
+                        (section_arrows[1]),
                         enable_events=True,
                         k=key + "-EXPAND_BUTTON-",
                     ),
@@ -460,14 +484,17 @@ class BLExplorerGUI:
                     sg.pin(
                         sg.Column(
                             characteristic_layout,
-                            key=key,
-                            visible=True,  # TODO CHANGE
                             metadata=section_arrows,
+                            expand_x=True,
+                            expand_y=True,
+                            visible=False,
+                            key=key,
                         )
                     )
                 ],
             ],
             expand_x=True,
+            expand_y=True,
         )
         return characteristic_section
 
