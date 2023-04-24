@@ -123,16 +123,18 @@ class Ble:
             for _, service in dev.services.services.items():
                 services_collection[service.uuid] = {
                     "name": service.description,
-                    "service": service
+                    "service": service,
                 }
                 service_characteristics = {}
                 for characteristic in service.characteristics:
                     service_characteristics[characteristic.uuid] = {
                         "name": characteristic.description,
                         "properties": characteristic.properties,
-                        "characteristic": characteristic
+                        "characteristic": characteristic,
                     }
-                services_collection["characteristics"] = service_characteristics
+                services_collection[service.uuid][
+                    "characteristics"
+                ] = service_characteristics
         return services_collection
 
     async def bluetooth_scan(self, stop_event):

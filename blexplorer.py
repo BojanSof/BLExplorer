@@ -6,7 +6,7 @@ from ble import Ble, ConnectionStatus
 
 
 MAX_NUM_DEVICES = 2  # maximum number of connected devices
-MAX_NUM_SERVICES = 3  # maximum number of services per device
+MAX_NUM_SERVICES = 6  # maximum number of services per device
 MAX_NUM_CHARACTERISTICS = 3  # maximum number of characteristics per service
 
 
@@ -176,6 +176,7 @@ class BLExplorerGUI:
                             else ble_selected_dev_addr,
                             visible=True,
                         )
+                        self.set_tab_data(tab, ble_selected_dev_addr)
                         self.window[tab_key].select()
                         if len(self.dev_tabs_free) == MAX_NUM_DEVICES - 1:
                             self.window["-NO_CONN_DEVS_CONTAINER-"].update(
@@ -201,6 +202,56 @@ class BLExplorerGUI:
                         self.window["-NO_CONN_DEVS_CONTAINER-"].update(
                             visible=True
                         )
+
+    def set_tab_data(self, i_tab, dev_address):
+        dev_attr = self.ble.get_services_and_characteristics(dev_address)
+        if dev_attr is not None:
+            for i_service, (service_uuid, service) in enumerate(
+                dev_attr.items()
+            ):
+                service_key = f"-SERVICE${i_tab},{i_service + 1}$-"
+                self.window[service_key + "-EXPAND_TITLE-"].update(
+                    value=service["name"]
+                )
+                self.window[service_key + "-UUID-"].update(value=service_uuid)
+                self.window[service_key + "-CONTAINER-"].update(visible=True)
+                # by default, section is collapsed
+                self.window[service_key].update(visible=False)
+                self.window[service_key + "-EXPAND_BUTTON-"].update(
+                    self.window[service_key].metadata[0]
+                    if self.window[service_key].visible
+                    else self.window[service_key].metadata[1]
+                )
+                # update characteristics data
+                for i_char, (
+                    char_uuid,
+                    char,
+                ) in enumerate(service["characteristics"].items()):
+                    char_key = service_key + f"CHARACTERISTIC${i_char + 1}$-"
+                    self.window[char_key + "-EXPAND_TITLE-"].update(
+                        value=char["name"]
+                    )
+                    self.window[char_key + "-UUID-"].update(value=char_uuid)
+                    self.window[char_key + "-PROPERTIES-"].update(
+                        value=",".join(char["properties"])
+                    )
+                    self.window[char_key + "-CONTAINER-"].update(visible=True)
+                    # by default, section is collapsed
+                    self.window[char_key].update(visible=False)
+                    self.window[char_key + "-EXPAND_BUTTON-"].update(
+                        self.window[char_key].metadata[0]
+                        if self.window[char_key].visible
+                        else self.window[char_key].metadata[1]
+                    )
+                for i_char in range(
+                    len(service["characteristics"]), MAX_NUM_CHARACTERISTICS
+                ):
+                    char_key = service_key + f"CHARACTERISTIC${i_char + 1}$-"
+                    self.window[char_key + "-CONTAINER-"].update(visible=False)
+
+            for i_service in range(len(dev_attr), MAX_NUM_SERVICES):
+                service_key = f"-SERVICE${i_tab},{i_service + 1}$-"
+                self.window[service_key + "-CONTAINER-"].update(visible=False)
 
     def clear_scan_data(self):
         self.i_selected_dev = None
@@ -407,21 +458,40 @@ class BLExplorerGUI:
     def _create_service_layout(
         self, key, section_arrows=(sg.SYMBOL_DOWN, sg.SYMBOL_UP)
     ):
-        service_layout = [
+        service_labels = sg.Column(
             [
-                sg.Frame(
+                [sg.Text("UUID", key=key + "-UUID_LABEL-")],
+            ]
+        )
+        service_vals = sg.Column(
+            [
+                [
+                    sg.Input(
+                        "",
+                        readonly=True,
+                        size=(33,),
+                        key=key + "-UUID-",
+                    )
+                ]
+            ]
+        )
+        service_layout = [[service_labels, service_vals]] + [
+            [
+                sg.pin(sg.Frame(
                     "",
                     [
                         [
                             self._create_characteristics_layout(
-                                key + f"CHARACTERISTIC${i}$-", section_arrows
+                                key + f"CHARACTERISTIC${i}$-",
+                                section_arrows,
                             )
                         ]
                     ],
                     border_width=1,
                     expand_x=True,
                     expand_y=True,
-                )
+                    key=key + f"CHARACTERISTIC${i}$-" + "-CONTAINER-",
+                ))
             ]
             for i in range(1, MAX_NUM_CHARACTERISTICS + 1)
         ]
@@ -456,6 +526,7 @@ class BLExplorerGUI:
             border_width=2,
             expand_x=True,
             expand_y=True,
+            key=key + "-CONTAINER-",
         )
         return service_section
 
@@ -476,7 +547,7 @@ class BLExplorerGUI:
                     sg.Input(
                         "",
                         readonly=True,
-                        size=(15,),
+                        size=(33,),
                         key=key + "-UUID-",
                     )
                 ],
