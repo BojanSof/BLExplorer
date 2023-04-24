@@ -23,7 +23,7 @@ class BLExplorerGUI:
             "BLExplorer",
             self.layout,
             resizable=True,
-            size=(1024, 800),
+            size=(1024, 700),
             font=("Helvetica", 12),
             icon=os.path.join("resources", "blexplorer.ico"),
         )
@@ -97,6 +97,12 @@ class BLExplorerGUI:
                 if self.window[section_key].visible
                 else self.window[section_key].metadata[1]
             )
+            # update scrollable section
+            dev_num = section_key.split("$")[1].split(",")[0]
+            dev_tab_section = f"-DEV${dev_num}$_CONTAINER-"
+            self.window.refresh()
+            self.window[dev_tab_section].contents_changed()
+
 
     def update(self):
         # update scan info
@@ -282,7 +288,7 @@ class BLExplorerGUI:
                             [
                                 [
                                     self._create_service_layout(
-                                        f"-SERVICE{i}{j}-"
+                                        f"-SERVICE${i},{j}$-"
                                     )
                                 ]
                                 for j in range(1, MAX_NUM_SERVICES + 1)
@@ -291,6 +297,7 @@ class BLExplorerGUI:
                             vertical_scroll_only=True,
                             expand_x=True,
                             expand_y=True,
+                            key=f"-DEV${i}$_CONTAINER-"
                         )
                     ]
                 ],
@@ -375,7 +382,7 @@ class BLExplorerGUI:
             [
                 [
                     sg.Text(
-                        (section_arrows[0]),
+                        (section_arrows[1]),
                         enable_events=True,
                         k=key + "-EXPAND_BUTTON-",
                     ),
@@ -392,7 +399,7 @@ class BLExplorerGUI:
                             metadata=section_arrows,
                             expand_x=True,
                             expand_y=True,
-                            visible=True,  # TODO CHANGE
+                            visible=False,
                             key=key,
                         )
                     )
