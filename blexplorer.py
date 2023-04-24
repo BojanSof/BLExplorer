@@ -103,7 +103,6 @@ class BLExplorerGUI:
             self.window.refresh()
             self.window[dev_tab_section].contents_changed()
 
-
     def update(self):
         # update scan info
         self.update_scan()
@@ -272,12 +271,22 @@ class BLExplorerGUI:
             "Advertisement info", ble_adv_info_layout, font=(font, 14)
         )
         layout_advertisement = [
-            [
-                sg.Column(
-                    [[ble_dev_table]], justification="left", expand_x=True
-                ),
-                sg.Column([[ble_adv_info_frame]], justification="right"),
-            ]
+            sg.Column(
+                [
+                    [
+                        sg.Column(
+                            [[ble_dev_table]],
+                            justification="left",
+                            expand_x=True,
+                        ),
+                        sg.Column(
+                            [[ble_adv_info_frame]], justification="right"
+                        ),
+                    ]
+                ],
+                expand_x=True,
+                expand_y=True,
+            )
         ]
         tabs = [
             sg.Tab(
@@ -297,19 +306,20 @@ class BLExplorerGUI:
                             vertical_scroll_only=True,
                             expand_x=True,
                             expand_y=True,
-                            key=f"-DEV${i}$_CONTAINER-"
+                            key=f"-DEV${i}$_CONTAINER-",
                         )
                     ]
                 ],
                 expand_x=True,
                 expand_y=True,
                 visible=True,
-                key=f"-CONNECTED_DEVICE_{i}-",
+                key=f"-CONNECTED_DEVICE${i}$-",
             )
             for i in range(1, MAX_NUM_DEVICES + 1)
         ]
         tab_group = sg.TabGroup(
             [tabs],
+            size=(500, 500),
             expand_x=True,
             expand_y=True,
             key="-CONN_DEVS_TABS-",
@@ -338,11 +348,15 @@ class BLExplorerGUI:
                                 ]
                             ],
                             justification="center",
+                            element_justification="center",
+                            expand_x=True,
+                            expand_y=True,
                             visible=False,
                             key="-NO_CONN_DEVS_CONTAINER-",
                         )
                     ],
                 ],
+                size=(500, 500),
                 expand_x=True,
                 expand_y=True,
                 font=(font, 14),
@@ -366,7 +380,7 @@ class BLExplorerGUI:
                     [
                         [
                             self._create_characteristics_layout(
-                                key + f"CHARACTERISTIC{i}-", section_arrows
+                                key + f"CHARACTERISTIC${i}$-", section_arrows
                             )
                         ]
                     ],
