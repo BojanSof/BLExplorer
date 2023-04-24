@@ -7,7 +7,7 @@ from ble import Ble, ConnectionStatus
 
 MAX_NUM_DEVICES = 2  # maximum number of connected devices
 MAX_NUM_SERVICES = 6  # maximum number of services per device
-MAX_NUM_CHARACTERISTICS = 3  # maximum number of characteristics per service
+MAX_NUM_CHARACTERISTICS = 5  # maximum number of characteristics per service
 
 
 class BLExplorerGUI:
@@ -477,56 +477,60 @@ class BLExplorerGUI:
         )
         service_layout = [[service_labels, service_vals]] + [
             [
-                sg.pin(sg.Frame(
-                    "",
-                    [
+                sg.pin(
+                    sg.Frame(
+                        "",
                         [
-                            self._create_characteristics_layout(
-                                key + f"CHARACTERISTIC${i}$-",
-                                section_arrows,
-                            )
-                        ]
-                    ],
-                    border_width=1,
-                    expand_x=True,
-                    expand_y=True,
-                    key=key + f"CHARACTERISTIC${i}$-" + "-CONTAINER-",
-                ))
+                            [
+                                self._create_characteristics_layout(
+                                    key + f"CHARACTERISTIC${i}$-",
+                                    section_arrows,
+                                )
+                            ]
+                        ],
+                        border_width=1,
+                        expand_x=True,
+                        expand_y=True,
+                        key=key + f"CHARACTERISTIC${i}$-" + "-CONTAINER-",
+                    )
+                )
             ]
             for i in range(1, MAX_NUM_CHARACTERISTICS + 1)
         ]
-        service_section = sg.Frame(
-            "",
-            [
+        service_section = sg.pin(
+            sg.Frame(
+                "",
                 [
-                    sg.Text(
-                        (section_arrows[1]),
-                        enable_events=True,
-                        k=key + "-EXPAND_BUTTON-",
-                    ),
-                    sg.Text(
-                        "Service",
-                        enable_events=True,
-                        key=key + "-EXPAND_TITLE-",
-                    ),
-                ],
-                [
-                    sg.pin(
-                        sg.Column(
-                            service_layout,
-                            metadata=section_arrows,
-                            expand_x=True,
-                            expand_y=True,
-                            visible=False,
-                            key=key,
+                    [
+                        sg.Text(
+                            (section_arrows[1]),
+                            enable_events=True,
+                            k=key + "-EXPAND_BUTTON-",
+                        ),
+                        sg.Text(
+                            "Service",
+                            enable_events=True,
+                            key=key + "-EXPAND_TITLE-",
+                        ),
+                    ],
+                    [
+                        sg.pin(
+                            sg.Column(
+                                service_layout,
+                                metadata=section_arrows,
+                                expand_x=True,
+                                expand_y=True,
+                                visible=False,
+                                key=key,
+                            )
                         )
-                    )
+                    ],
                 ],
-            ],
-            border_width=2,
-            expand_x=True,
-            expand_y=True,
-            key=key + "-CONTAINER-",
+                border_width=2,
+                expand_x=True,
+                expand_y=True,
+                key=key + "-CONTAINER-",
+            )
         )
         return service_section
 
