@@ -17,6 +17,9 @@ class BLExplorerGUI:
         self.layout = self._create_layout()
         self.running = False
         self.i_selected_dev = None
+        # for updating connected devices layout
+        self.dev_tabs_free = {i for i in range(1, MAX_NUM_DEVICES + 1)}
+        self.dev_tabs = {}
 
     def run(self):
         self.window = sg.Window(
@@ -154,17 +157,50 @@ class BLExplorerGUI:
         if status is not None and self.i_selected_dev is not None:
             status_address, connection_status = status
             ble_devices = self.ble.get_found_devices()
-            ble_selected_dev_addr = ble_devices[self.i_selected_dev]["address"]
+            ble_selected_dev = ble_devices[self.i_selected_dev]
+            ble_selected_dev_addr = ble_selected_dev["address"]
             if status_address == ble_selected_dev_addr:
                 if connection_status == ConnectionStatus.Connected:
                     if self.ble.is_connected(ble_selected_dev_addr):
                         self.window["-BLE_CONNECT-"].update(
                             text="Disconnect", disabled=False
                         )
+                        # find free tab and assign it to the device
+                        tab = min(self.dev_tabs_free)
+                        self.dev_tabs[ble_selected_dev_addr] = tab
+                        self.dev_tabs_free.remove(tab)
+                        tab_key = f"-CONNECTED_DEVICE${tab}$-"
+                        self.window[tab_key].update(
+                            title=ble_selected_dev["name"]
+                            if len(ble_selected_dev["name"]) > 0
+                            else ble_selected_dev_addr,
+                            visible=True,
+                        )
+                        self.window[tab_key].select()
+                        if len(self.dev_tabs_free) == MAX_NUM_DEVICES - 1:
+                            self.window["-NO_CONN_DEVS_CONTAINER-"].update(
+                                visible=False
+                            )
+                            self.window["-CONN_DEVS_CONTAINER-"].update(
+                                visible=True
+                            )
                 elif connection_status == ConnectionStatus.Disconnected:
                     self.window["-BLE_CONNECT-"].update(
                         text="Connect", disabled=False
                     )
+                    # release the device tab
+                    tab = self.dev_tabs[ble_selected_dev_addr]
+                    self.dev_tabs_free.add(tab)
+                    del self.dev_tabs[ble_selected_dev_addr]
+                    tab_key = f"-CONNECTED_DEVICE${tab}$-"
+                    self.window[tab_key].update(visible=False)
+                    if len(self.dev_tabs_free) == MAX_NUM_DEVICES:
+                        self.window["-CONN_DEVS_CONTAINER-"].update(
+                            visible=False
+                        )
+                        self.window["-NO_CONN_DEVS_CONTAINER-"].update(
+                            visible=True
+                        )
 
     def clear_scan_data(self):
         self.i_selected_dev = None
@@ -312,7 +348,7 @@ class BLExplorerGUI:
                 ],
                 expand_x=True,
                 expand_y=True,
-                visible=True,
+                visible=False,
                 key=f"-CONNECTED_DEVICE${i}$-",
             )
             for i in range(1, MAX_NUM_DEVICES + 1)
@@ -333,11 +369,9 @@ class BLExplorerGUI:
                             [[tab_group]],
                             expand_x=True,
                             expand_y=True,
-                            visible=True,
+                            visible=False,
                             key="-CONN_DEVS_CONTAINER-",
-                        )
-                    ],
-                    [
+                        ),
                         sg.Column(
                             [
                                 [
@@ -351,9 +385,9 @@ class BLExplorerGUI:
                             element_justification="center",
                             expand_x=True,
                             expand_y=True,
-                            visible=False,
+                            visible=True,
                             key="-NO_CONN_DEVS_CONTAINER-",
-                        )
+                        ),
                     ],
                 ],
                 size=(500, 500),
