@@ -31,6 +31,8 @@ class Ble:
     def __del__(self):
         if self.scanning:
             self.stop_scan()
+        for dev_addr, _ in list(self.connected_devices.keys()):
+            self.disconnect(dev_addr)
         self.event_loop_thread.join()
 
     def start_scan(self):
@@ -101,6 +103,9 @@ class Ble:
 
     def is_connected(self, dev_address):
         return dev_address in self.connected_devices
+
+    def get_connected_devices(self):
+        return list(self.connected_devices.keys())
 
     def get_status(self, dev_address):
         if dev_address in self.status_devices:

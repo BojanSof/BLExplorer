@@ -411,7 +411,7 @@ class BLExplorerGUI:
                 ],
                 expand_x=True,
                 expand_y=True,
-                visible=True,
+                visible=False,
                 key=f"-CONNECTED_DEVICE${i}$-",
             )
             for i in range(1, MAX_NUM_DEVICES + 1)
