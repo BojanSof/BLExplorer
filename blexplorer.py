@@ -106,7 +106,7 @@ class BLExplorerGUI:
             dev_tab_section = f"-DEV${dev_num}$_CONTAINER-"
             self.window.refresh()
             self.window[dev_tab_section].contents_changed()
-        elif "READ" in event:
+        elif "READ" in event or "WRITE" in event:
             char_base_key = event.split("--")[0]
             tab_num = int(event.split("$")[1].split(",")[0])
             dev_addr = [
@@ -117,7 +117,14 @@ class BLExplorerGUI:
                 for uuid, e_key in self.chars_maps[dev_addr].items()
                 if char_base_key in e_key
             ][0]
-            self.ble.read_characteristic(dev_addr, char_uuid)
+            if "READ" in event:
+                self.ble.read_characteristic(dev_addr, char_uuid)
+            elif "WRITE" in event:
+                data_str = sg.popup_get_text(
+                    "Enter bytes to write, in hex", title="Write characteristic"
+                )
+                data = bytearray.fromhex(data_str)
+                self.ble.write_characteristic(dev_addr, char_uuid, data)
 
     def update(self):
         # update scan info
@@ -634,7 +641,9 @@ class BLExplorerGUI:
                     sg.pin(
                         sg.Button("↓", enable_events=True, key=key + "-READ-")
                     ),
-                    sg.pin(sg.Button("↑", key=key + "-WRITE-")),
+                    sg.pin(
+                        sg.Button("↑", enable_events=True, key=key + "-WRITE-")
+                    ),
                     sg.pin(sg.Button("↑↓", key=key + "-INDICATE-")),
                     sg.pin(sg.Button("↓↓", key=key + "-NOTIFY-")),
                 ]

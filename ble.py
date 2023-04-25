@@ -11,6 +11,7 @@ class ConnectionStatus(enum.Enum):
     Connecting = enum.auto()
     Connected = enum.auto()
     Disconnecting = enum.auto()
+    WriteSuccessful = enum.auto()
 
 
 class Ble:
@@ -163,6 +164,20 @@ class Ble:
                         self.event_loop
                     )
 
+    def write_characteristic(self, dev_addr, char_uuid, data):
+        if self.is_connected(dev_addr):
+            client = self.connected_devices[dev_addr]
+            chars = list(client.services.characteristics.values())
+            chars_uuids = [char.uuid for char in chars]
+            chars_properties = [char.properties for char in chars]
+            if char_uuid in chars_uuids:
+                i_char = chars_uuids.index(char_uuid)
+                if "write" in chars_properties[i_char]:
+                    asyncio.run_coroutine_threadsafe(
+                        self.bluetooth_write(client, char_uuid, data),
+                        self.event_loop
+                    )
+
     async def bluetooth_scan(self, stop_event):
         async with BleakScanner(
             detection_callback=self._detection_callback,
@@ -214,6 +229,7 @@ class Ble:
 
     async def bluetooth_write(self, client, uuid, data):
         await client.write_gatt_char(uuid, data)
+        # TODO maybe notify the status
 
     async def bluetooth_indicate(self, client, uuid):
         pass
