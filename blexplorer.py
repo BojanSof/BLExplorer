@@ -32,7 +32,7 @@ class BLExplorerGUI:
         )
         self.running = True
         while self.running:
-            event, values = self.window.read(timeout=100)
+            event, values = self.window.read(timeout=50)
             # process event
             self.process_event(event, values)
             if not self.running:
@@ -235,6 +235,18 @@ class BLExplorerGUI:
                     self.window[char_key + "-PROPERTIES-"].update(
                         value=",".join(char["properties"])
                     )
+                    self.window[char_key + "-READ-"].update(
+                        visible="read" in char["properties"]
+                    )
+                    self.window[char_key + "-WRITE-"].update(
+                        visible="write" in char["properties"]
+                    )
+                    self.window[char_key + "-INDICATE-"].update(
+                        visible="indicate" in char["properties"]
+                    )
+                    self.window[char_key + "-NOTIFY-"].update(
+                        visible="notify" in char["properties"]
+                    )
                     self.window[char_key + "-CONTAINER-"].update(visible=True)
                     # by default, section is collapsed
                     self.window[char_key].update(visible=False)
@@ -399,7 +411,7 @@ class BLExplorerGUI:
                 ],
                 expand_x=True,
                 expand_y=True,
-                visible=False,
+                visible=True,
                 key=f"-CONNECTED_DEVICE${i}$-",
             )
             for i in range(1, MAX_NUM_DEVICES + 1)
@@ -502,16 +514,23 @@ class BLExplorerGUI:
                 "",
                 [
                     [
-                        sg.Text(
-                            (section_arrows[1]),
-                            enable_events=True,
-                            k=key + "-EXPAND_BUTTON-",
-                        ),
-                        sg.Text(
-                            "Service",
-                            enable_events=True,
-                            key=key + "-EXPAND_TITLE-",
-                        ),
+                        sg.Column(
+                            [
+                                [
+                                    sg.Text(
+                                        (section_arrows[1]),
+                                        enable_events=True,
+                                        k=key + "-EXPAND_BUTTON-",
+                                    ),
+                                    sg.Text(
+                                        "Service",
+                                        enable_events=True,
+                                        key=key + "-EXPAND_TITLE-",
+                                    ),
+                                ]
+                            ],
+                            expand_x=True,
+                        )
                     ],
                     [
                         sg.pin(
@@ -586,29 +605,36 @@ class BLExplorerGUI:
         characteristic_buttons = sg.Column(
             [
                 [
-                    sg.Button("↓", key=key + "-READ-"),
-                    sg.Button("↑", key=key + "-WRITE-"),
-                    sg.Button("↑↓", key=key + "-INDICATE-"),
-                    sg.Button("↓↓", key=key + "-NOTIFY-"),
+                    sg.pin(sg.Button("↓", key=key + "-READ-")),
+                    sg.pin(sg.Button("↑", key=key + "-WRITE-")),
+                    sg.pin(sg.Button("↑↓", key=key + "-INDICATE-")),
+                    sg.pin(sg.Button("↓↓", key=key + "-NOTIFY-")),
                 ]
             ],
             element_justification="right",
-            pad=((50, 0), (0, 0)),
         )
         characteristic_section = sg.Column(
             [
                 [
-                    sg.Text(
-                        (section_arrows[1]),
-                        enable_events=True,
-                        k=key + "-EXPAND_BUTTON-",
-                    ),
-                    sg.Text(
-                        "Characteristic",
-                        enable_events=True,
-                        key=key + "-EXPAND_TITLE-",
-                    ),
-                    characteristic_buttons,
+                    sg.Column(
+                        [
+                            [
+                                sg.Text(
+                                    (section_arrows[1]),
+                                    enable_events=True,
+                                    k=key + "-EXPAND_BUTTON-",
+                                ),
+                                sg.Text(
+                                    "Characteristic",
+                                    enable_events=True,
+                                    key=key + "-EXPAND_TITLE-",
+                                ),
+                                sg.Push(),
+                                characteristic_buttons,
+                            ]
+                        ],
+                        expand_x=True,
+                    )
                 ],
                 [
                     sg.pin(
