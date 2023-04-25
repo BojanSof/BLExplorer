@@ -21,6 +21,7 @@ class Ble:
         self.connected_devices = {}
         self.disconnect_events = {}
         self.status_queue = queue.Queue()
+        self.data_queue = queue.Queue()
         self.status_devices = {}
         self.event_loop = asyncio.new_event_loop()
         self.event_loop_thread = threading.Thread(
@@ -119,6 +120,12 @@ class Ble:
         except queue.Empty:
             return None
 
+    def get_data_event(self):
+        try:
+            return self.data_queue.get_nowait()
+        except queue.Empty:
+            return None
+
     def get_services_and_characteristics(self, dev_address):
         if not self.is_connected(dev_address):
             services_collection = None
@@ -141,6 +148,20 @@ class Ble:
                     "characteristics"
                 ] = service_characteristics
         return services_collection
+
+    def read_characteristic(self, dev_addr, char_uuid):
+        if self.is_connected(dev_addr):
+            client = self.connected_devices[dev_addr]
+            chars = list(client.services.characteristics.values())
+            chars_uuids = [char.uuid for char in chars]
+            chars_properties = [char.properties for char in chars]
+            if char_uuid in chars_uuids:
+                i_char = chars_uuids.index(char_uuid)
+                if "read" in chars_properties[i_char]:
+                    asyncio.run_coroutine_threadsafe(
+                        self.bluetooth_read(client, char_uuid),
+                        self.event_loop
+                    )
 
     async def bluetooth_scan(self, stop_event):
         async with BleakScanner(
@@ -182,6 +203,23 @@ class Ble:
         except queue.Full:
             # TODO better handling of this case
             pass
+
+    async def bluetooth_read(self, client, uuid):
+        data = await client.read_gatt_char(uuid)
+        try:
+            self.data_queue.put_nowait((client.address, uuid, data))
+        except queue.Full:
+            # TODO better handling of this case
+            pass
+
+    async def bluetooth_write(self, client, uuid, data):
+        await client.write_gatt_char(uuid, data)
+
+    async def bluetooth_indicate(self, client, uuid):
+        pass
+
+    async def bluetooth_notify(self, client, uuid):
+        pass
 
     def _asyncloop(self):
         asyncio.set_event_loop(self.event_loop)

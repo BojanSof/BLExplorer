@@ -20,6 +20,7 @@ class BLExplorerGUI:
         # for updating connected devices layout
         self.dev_tabs_free = {i for i in range(1, MAX_NUM_DEVICES + 1)}
         self.dev_tabs = {}
+        self.chars_maps = {}
 
     def run(self):
         self.window = sg.Window(
@@ -105,11 +106,24 @@ class BLExplorerGUI:
             dev_tab_section = f"-DEV${dev_num}$_CONTAINER-"
             self.window.refresh()
             self.window[dev_tab_section].contents_changed()
+        elif "READ" in event:
+            char_base_key = event.split("--")[0]
+            tab_num = int(event.split("$")[1].split(",")[0])
+            dev_addr = [
+                addr for addr, tab in self.dev_tabs.items() if tab == tab_num
+            ][0]
+            char_uuid = [
+                uuid
+                for uuid, e_key in self.chars_maps[dev_addr].items()
+                if char_base_key in e_key
+            ][0]
+            self.ble.read_characteristic(dev_addr, char_uuid)
 
     def update(self):
         # update scan info
         self.update_scan()
-        self.update_connections()
+        self.update_connections_status()
+        self.update_data()
 
     def update_scan(self):
         if self.ble.has_found_device():
@@ -152,7 +166,7 @@ class BLExplorerGUI:
             else:
                 self.window["-ADV_UUIDS-"].update(values=[])
 
-    def update_connections(self):
+    def update_connections_status(self):
         status = self.ble.get_status_event()
         if status is not None and self.i_selected_dev is not None:
             status_address, connection_status = status
@@ -193,6 +207,7 @@ class BLExplorerGUI:
                     tab = self.dev_tabs[ble_selected_dev_addr]
                     self.dev_tabs_free.add(tab)
                     del self.dev_tabs[ble_selected_dev_addr]
+                    del self.chars_maps[ble_selected_dev_addr]
                     tab_key = f"-CONNECTED_DEVICE${tab}$-"
                     self.window[tab_key].update(visible=False)
                     if len(self.dev_tabs_free) == MAX_NUM_DEVICES:
@@ -203,9 +218,19 @@ class BLExplorerGUI:
                             visible=True
                         )
 
+    def update_data(self):
+        data = self.ble.get_data_event()
+        if data is not None:
+            dev_addr, char_uuid, read_data = data
+            # find characteristic GUI key
+            char_key = self.chars_maps[dev_addr][char_uuid]
+            data_hex = read_data.hex()
+            self.window[char_key + "-VALUE-"].update(value=data_hex)
+
     def set_tab_data(self, i_tab, dev_address):
         dev_attr = self.ble.get_services_and_characteristics(dev_address)
         if dev_attr is not None:
+            self.chars_maps[dev_address] = {}
             for i_service, (service_uuid, service) in enumerate(
                 dev_attr.items()
             ):
@@ -228,6 +253,7 @@ class BLExplorerGUI:
                     char,
                 ) in enumerate(service["characteristics"].items()):
                     char_key = service_key + f"CHARACTERISTIC${i_char + 1}$-"
+                    self.chars_maps[dev_address][char_uuid] = char_key
                     self.window[char_key + "-EXPAND_TITLE-"].update(
                         value=char["name"]
                     )
@@ -586,7 +612,7 @@ class BLExplorerGUI:
                     sg.Input(
                         "",
                         readonly=True,
-                        size=(15,),
+                        size=(33,),
                         key=key + "-VALUE-",
                     )
                 ],
@@ -605,7 +631,9 @@ class BLExplorerGUI:
         characteristic_buttons = sg.Column(
             [
                 [
-                    sg.pin(sg.Button("↓", key=key + "-READ-")),
+                    sg.pin(
+                        sg.Button("↓", enable_events=True, key=key + "-READ-")
+                    ),
                     sg.pin(sg.Button("↑", key=key + "-WRITE-")),
                     sg.pin(sg.Button("↑↓", key=key + "-INDICATE-")),
                     sg.pin(sg.Button("↓↓", key=key + "-NOTIFY-")),
