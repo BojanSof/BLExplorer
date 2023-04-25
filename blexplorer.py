@@ -243,7 +243,18 @@ class BLExplorerGUI:
                 BleStatus.NotificationsDisabled,
                 BleStatus.NotificationsEnabled,
             ]:
-                pass
+                dev_addr, notification_status, char_uuid = status
+                section = self.chars_maps[dev_addr][char_uuid]
+                self.window[section + "-NOTIFY-"].update(
+                    text="⤈⤈"
+                    if notification_status == BleStatus.NotificationsEnabled
+                    else "↓↓"
+                )
+                self.window[section + "-INDICATE-"].update(
+                    text="⤉⤈"
+                    if notification_status == BleStatus.NotificationsEnabled
+                    else "↑↓"
+                )
             elif status[1] in [BleStatus.WriteSuccessful]:
                 pass
 
@@ -661,19 +672,35 @@ class BLExplorerGUI:
             [
                 [
                     sg.pin(
-                        sg.Button("↓", enable_events=True, key=key + "-READ-")
-                    ),
-                    sg.pin(
-                        sg.Button("↑", enable_events=True, key=key + "-WRITE-")
-                    ),
-                    sg.pin(
                         sg.Button(
-                            "↑↓", enable_events=True, key=key + "-INDICATE-"
+                            "↓",
+                            enable_events=True,
+                            font=14,
+                            key=key + "-READ-",
                         )
                     ),
                     sg.pin(
                         sg.Button(
-                            "↓↓", enable_events=True, key=key + "-NOTIFY-"
+                            "↑",
+                            enable_events=True,
+                            font=14,
+                            key=key + "-WRITE-",
+                        )
+                    ),
+                    sg.pin(
+                        sg.Button(
+                            "↑↓",
+                            enable_events=True,
+                            font=14,
+                            key=key + "-INDICATE-",
+                        )
+                    ),
+                    sg.pin(
+                        sg.Button(
+                            "↓↓",
+                            enable_events=True,
+                            font=14,
+                            key=key + "-NOTIFY-",
                         )
                     ),
                 ]
