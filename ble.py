@@ -6,12 +6,14 @@ import queue
 from bleak import BleakScanner, BleakClient
 
 
-class ConnectionStatus(enum.Enum):
+class BleStatus(enum.Enum):
     Disconnected = enum.auto()
     Connecting = enum.auto()
     Connected = enum.auto()
     Disconnecting = enum.auto()
     WriteSuccessful = enum.auto()
+    NotificationsEnabled = enum.auto()
+    NotificationsDisabled = enum.auto()
 
 
 class Ble:
@@ -32,10 +34,17 @@ class Ble:
         self.event_loop_thread.start()
 
     def __del__(self):
+        # stop scanning
         if self.scanning:
             self.stop_scan()
-        for dev_addr, _ in list(self.connected_devices.keys()):
+        # stop notifications
+        for dev_addr, dev_events in self.stop_notify_events.items():
+            for char_uuid in dev_events.keys():
+                self.stop_notifications_characteristic(dev_addr, char_uuid)
+        # disconnect from connected devices
+        for dev_addr in self.connected_devices.keys():
             self.disconnect(dev_addr)
+        self.event_loop.call_soon_threadsafe(self.event_loop.stop)
         self.event_loop_thread.join()
 
     def start_scan(self):
@@ -77,11 +86,9 @@ class Ble:
         return devices
 
     def connect(self, dev):
-        self.status_devices[dev.address] = ConnectionStatus.Connecting
+        self.status_devices[dev.address] = BleStatus.Connecting
         try:
-            self.status_queue.put_nowait(
-                (dev.address, ConnectionStatus.Connecting)
-            )
+            self.status_queue.put_nowait((dev.address, BleStatus.Connecting))
         except queue.Full:
             # TODO better handling of this case
             pass
@@ -92,14 +99,16 @@ class Ble:
         )
 
     def disconnect(self, dev_address):
-        self.status_devices[dev_address] = ConnectionStatus.Disconnecting
+        self.status_devices[dev_address] = BleStatus.Disconnecting
         try:
-            self.status_queue.put_nowait(
-                (dev_address, ConnectionStatus.Disconnecting)
-            )
+            self.status_queue.put_nowait((dev_address, BleStatus.Disconnecting))
         except queue.Full:
             # TODO better handling of this case
             pass
+        # stop notifications if any
+        for dev_addr, dev_events in self.stop_notify_events.items():
+            for char_uuid in dev_events.keys():
+                self.stop_notifications_characteristic(dev_addr, char_uuid)
         self.event_loop.call_soon_threadsafe(
             self.disconnect_events[dev_address].set
         )
@@ -187,19 +196,34 @@ class Ble:
             if char_uuid in chars_uuids:
                 i_char = chars_uuids.index(char_uuid)
                 if "notify" in chars_properties[i_char]:
-                    self.stop_notify_events[dev_addr] = asyncio.Event()
+                    if dev_addr not in self.stop_notify_events:
+                        self.stop_notify_events[dev_addr] = {}
+                    self.stop_notify_events[dev_addr][
+                        char_uuid
+                    ] = asyncio.Event()
                     asyncio.run_coroutine_threadsafe(
                         self.bluetooth_notify(
-                            client, char_uuid, self.stop_notify_events[dev_addr]
+                            client,
+                            char_uuid,
+                            self.stop_notify_events[dev_addr][char_uuid],
                         ),
                         self.event_loop,
                     )
 
-    def stop_notifications_characteristic(self, dev_addr):
-        if dev_addr in self.stop_notify_events.keys():
+    def stop_notifications_characteristic(self, dev_addr, char_uuid):
+        if (
+            dev_addr in self.stop_notify_events.keys()
+            and char_uuid in self.stop_notify_events[dev_addr].keys()
+        ):
             self.event_loop.call_soon_threadsafe(
-                self.stop_notify_events[dev_addr].set
+                self.stop_notify_events[dev_addr][char_uuid].set
             )
+
+    def are_notifications_enabled(self, dev_addr, char_uuid):
+        return (
+            dev_addr in self.stop_notify_events.keys()
+            and char_uuid in self.stop_notify_events[dev_addr].keys()
+        )
 
     async def bluetooth_scan(self, stop_event):
         async with BleakScanner(
@@ -221,10 +245,10 @@ class Ble:
             self._disconnect_callback,
         ) as client:
             self.connected_devices[device.address] = client
-            self.status_devices[device.address] = ConnectionStatus.Connected
+            self.status_devices[device.address] = BleStatus.Connected
             try:
                 self.status_queue.put_nowait(
-                    (device.address, ConnectionStatus.Connected)
+                    (device.address, BleStatus.Connected)
                 )
             except queue.Full:
                 # TODO better handling of this case
@@ -236,7 +260,7 @@ class Ble:
         del self.status_devices[client.address]
         try:
             self.status_queue.put_nowait(
-                (client.address, ConnectionStatus.Disconnected)
+                (client.address, BleStatus.Disconnected)
             )
         except queue.Full:
             # TODO better handling of this case
@@ -258,17 +282,32 @@ class Ble:
         pass
 
     async def bluetooth_notify(self, client, uuid, stop_event):
-        client.start_notify(
+        await client.start_notify(
             uuid,
             lambda uuid, data: self.bluetooth_notify_callback(
                 client, uuid, data
             ),
         )
-        await stop_event.wait()
-
-    def bluetooth_notify_callback(self, client, uuid, data):
         try:
-            self.data_queue.put_nowait((client.address, uuid, data))
+            self.status_queue.put_nowait(
+                (client.address, BleStatus.NotificationsEnabled, uuid)
+            )
+        except queue.Full:
+            # TODO better handling of this case
+            pass
+        await stop_event.wait()
+        await client.stop_notify(uuid)
+        try:
+            self.status_queue.put_nowait(
+                (client.address, BleStatus.NotificationsDisabled, uuid)
+            )
+        except queue.Full:
+            # TODO better handling of this case
+            pass
+
+    def bluetooth_notify_callback(self, client, char, data):
+        try:
+            self.data_queue.put_nowait((client.address, char.uuid, data))
         except queue.Full:
             # TODO better handling of this case
             pass

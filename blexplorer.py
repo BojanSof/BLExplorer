@@ -2,7 +2,7 @@ import os
 
 import PySimpleGUI as sg
 
-from ble import Ble, ConnectionStatus
+from ble import Ble, BleStatus
 
 
 MAX_NUM_DEVICES = 2  # maximum number of connected devices
@@ -62,18 +62,15 @@ class BLExplorerGUI:
                     ble_devices[self.i_selected_dev]["address"]
                 )
                 if ble_selected_dev_status is not None:
-                    if ble_selected_dev_status == ConnectionStatus.Connecting:
+                    if ble_selected_dev_status == BleStatus.Connecting:
                         self.window["-BLE_CONNECT-"].update(
                             text="Connect", disabled=True
                         )
-                    elif (
-                        ble_selected_dev_status
-                        == ConnectionStatus.Disconnecting
-                    ):
+                    elif ble_selected_dev_status == BleStatus.Disconnecting:
                         self.window["-BLE_CONNECT-"].update(
                             text="Disconnect", disabled=True
                         )
-                    elif ble_selected_dev_status == ConnectionStatus.Connected:
+                    elif ble_selected_dev_status == BleStatus.Connected:
                         self.window["-BLE_CONNECT-"].update(
                             text="Disconnect", disabled=False
                         )
@@ -106,7 +103,12 @@ class BLExplorerGUI:
             dev_tab_section = f"-DEV${dev_num}$_CONTAINER-"
             self.window.refresh()
             self.window[dev_tab_section].contents_changed()
-        elif "READ" in event or "WRITE" in event:
+        elif (
+            "READ" in event
+            or "WRITE" in event
+            or "NOTIFY" in event
+            or "INDICATE" in event
+        ):
             char_base_key = event.split("--")[0]
             tab_num = int(event.split("$")[1].split(",")[0])
             dev_addr = [
@@ -125,11 +127,20 @@ class BLExplorerGUI:
                 )
                 data = bytearray.fromhex(data_str)
                 self.ble.write_characteristic(dev_addr, char_uuid, data)
+            elif "NOTIFY" in event or "INDICATE" in event:
+                if self.ble.are_notifications_enabled(dev_addr, char_uuid):
+                    self.ble.stop_notifications_characteristic(
+                        dev_addr, char_uuid
+                    )
+                else:
+                    self.ble.start_notifications_characteristic(
+                        dev_addr, char_uuid
+                    )
 
     def update(self):
         # update scan info
         self.update_scan()
-        self.update_connections_status()
+        self.update_ble_status()
         self.update_data()
 
     def update_scan(self):
@@ -173,57 +184,68 @@ class BLExplorerGUI:
             else:
                 self.window["-ADV_UUIDS-"].update(values=[])
 
-    def update_connections_status(self):
+    def update_ble_status(self):
         status = self.ble.get_status_event()
-        if status is not None and self.i_selected_dev is not None:
-            status_address, connection_status = status
-            ble_devices = self.ble.get_found_devices()
-            ble_selected_dev = ble_devices[self.i_selected_dev]
-            ble_selected_dev_addr = ble_selected_dev["address"]
-            if status_address == ble_selected_dev_addr:
-                if connection_status == ConnectionStatus.Connected:
-                    if self.ble.is_connected(ble_selected_dev_addr):
+        if status is not None:
+            if (
+                status[1] in [BleStatus.Disconnected, BleStatus.Connected]
+                and self.i_selected_dev is not None
+            ):
+                status_address, connection_status = status
+                ble_devices = self.ble.get_found_devices()
+                ble_selected_dev = ble_devices[self.i_selected_dev]
+                ble_selected_dev_addr = ble_selected_dev["address"]
+                if status_address == ble_selected_dev_addr:
+                    if connection_status == BleStatus.Connected:
+                        if self.ble.is_connected(ble_selected_dev_addr):
+                            self.window["-BLE_CONNECT-"].update(
+                                text="Disconnect", disabled=False
+                            )
+                            # find free tab and assign it to the device
+                            tab = min(self.dev_tabs_free)
+                            self.dev_tabs[ble_selected_dev_addr] = tab
+                            self.dev_tabs_free.remove(tab)
+                            tab_key = f"-CONNECTED_DEVICE${tab}$-"
+                            self.window[tab_key].update(
+                                title=ble_selected_dev["name"]
+                                if len(ble_selected_dev["name"]) > 0
+                                else ble_selected_dev_addr,
+                                visible=True,
+                            )
+                            self.set_tab_data(tab, ble_selected_dev_addr)
+                            self.window[tab_key].select()
+                            if len(self.dev_tabs_free) == MAX_NUM_DEVICES - 1:
+                                self.window["-NO_CONN_DEVS_CONTAINER-"].update(
+                                    visible=False
+                                )
+                                self.window["-CONN_DEVS_CONTAINER-"].update(
+                                    visible=True
+                                )
+                    elif connection_status == BleStatus.Disconnected:
                         self.window["-BLE_CONNECT-"].update(
-                            text="Disconnect", disabled=False
+                            text="Connect", disabled=False
                         )
-                        # find free tab and assign it to the device
-                        tab = min(self.dev_tabs_free)
-                        self.dev_tabs[ble_selected_dev_addr] = tab
-                        self.dev_tabs_free.remove(tab)
+                        # release the device tab
+                        tab = self.dev_tabs[ble_selected_dev_addr]
+                        self.dev_tabs_free.add(tab)
+                        del self.dev_tabs[ble_selected_dev_addr]
+                        del self.chars_maps[ble_selected_dev_addr]
                         tab_key = f"-CONNECTED_DEVICE${tab}$-"
-                        self.window[tab_key].update(
-                            title=ble_selected_dev["name"]
-                            if len(ble_selected_dev["name"]) > 0
-                            else ble_selected_dev_addr,
-                            visible=True,
-                        )
-                        self.set_tab_data(tab, ble_selected_dev_addr)
-                        self.window[tab_key].select()
-                        if len(self.dev_tabs_free) == MAX_NUM_DEVICES - 1:
-                            self.window["-NO_CONN_DEVS_CONTAINER-"].update(
+                        self.window[tab_key].update(visible=False)
+                        if len(self.dev_tabs_free) == MAX_NUM_DEVICES:
+                            self.window["-CONN_DEVS_CONTAINER-"].update(
                                 visible=False
                             )
-                            self.window["-CONN_DEVS_CONTAINER-"].update(
+                            self.window["-NO_CONN_DEVS_CONTAINER-"].update(
                                 visible=True
                             )
-                elif connection_status == ConnectionStatus.Disconnected:
-                    self.window["-BLE_CONNECT-"].update(
-                        text="Connect", disabled=False
-                    )
-                    # release the device tab
-                    tab = self.dev_tabs[ble_selected_dev_addr]
-                    self.dev_tabs_free.add(tab)
-                    del self.dev_tabs[ble_selected_dev_addr]
-                    del self.chars_maps[ble_selected_dev_addr]
-                    tab_key = f"-CONNECTED_DEVICE${tab}$-"
-                    self.window[tab_key].update(visible=False)
-                    if len(self.dev_tabs_free) == MAX_NUM_DEVICES:
-                        self.window["-CONN_DEVS_CONTAINER-"].update(
-                            visible=False
-                        )
-                        self.window["-NO_CONN_DEVS_CONTAINER-"].update(
-                            visible=True
-                        )
+            elif status[1] in [
+                BleStatus.NotificationsDisabled,
+                BleStatus.NotificationsEnabled,
+            ]:
+                pass
+            elif status[1] in [BleStatus.WriteSuccessful]:
+                pass
 
     def update_data(self):
         data = self.ble.get_data_event()
@@ -644,8 +666,16 @@ class BLExplorerGUI:
                     sg.pin(
                         sg.Button("↑", enable_events=True, key=key + "-WRITE-")
                     ),
-                    sg.pin(sg.Button("↑↓", key=key + "-INDICATE-")),
-                    sg.pin(sg.Button("↓↓", key=key + "-NOTIFY-")),
+                    sg.pin(
+                        sg.Button(
+                            "↑↓", enable_events=True, key=key + "-INDICATE-"
+                        )
+                    ),
+                    sg.pin(
+                        sg.Button(
+                            "↓↓", enable_events=True, key=key + "-NOTIFY-"
+                        )
+                    ),
                 ]
             ],
             element_justification="right",
