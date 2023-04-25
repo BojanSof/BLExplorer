@@ -21,6 +21,7 @@ class Ble:
         self.scanning = False
         self.connected_devices = {}
         self.disconnect_events = {}
+        self.stop_notify_events = {}
         self.status_queue = queue.Queue()
         self.data_queue = queue.Queue()
         self.status_devices = {}
@@ -160,8 +161,7 @@ class Ble:
                 i_char = chars_uuids.index(char_uuid)
                 if "read" in chars_properties[i_char]:
                     asyncio.run_coroutine_threadsafe(
-                        self.bluetooth_read(client, char_uuid),
-                        self.event_loop
+                        self.bluetooth_read(client, char_uuid), self.event_loop
                     )
 
     def write_characteristic(self, dev_addr, char_uuid, data):
@@ -175,8 +175,31 @@ class Ble:
                 if "write" in chars_properties[i_char]:
                     asyncio.run_coroutine_threadsafe(
                         self.bluetooth_write(client, char_uuid, data),
-                        self.event_loop
+                        self.event_loop,
                     )
+
+    def start_notifications_characteristic(self, dev_addr, char_uuid):
+        if self.is_connected(dev_addr):
+            client = self.connected_devices[dev_addr]
+            chars = list(client.services.characteristics.values())
+            chars_uuids = [char.uuid for char in chars]
+            chars_properties = [char.properties for char in chars]
+            if char_uuid in chars_uuids:
+                i_char = chars_uuids.index(char_uuid)
+                if "notify" in chars_properties[i_char]:
+                    self.stop_notify_events[dev_addr] = asyncio.Event()
+                    asyncio.run_coroutine_threadsafe(
+                        self.bluetooth_notify(
+                            client, char_uuid, self.stop_notify_events[dev_addr]
+                        ),
+                        self.event_loop,
+                    )
+
+    def stop_notifications_characteristic(self, dev_addr):
+        if dev_addr in self.stop_notify_events.keys():
+            self.event_loop.call_soon_threadsafe(
+                self.stop_notify_events[dev_addr].set
+            )
 
     async def bluetooth_scan(self, stop_event):
         async with BleakScanner(
@@ -234,8 +257,21 @@ class Ble:
     async def bluetooth_indicate(self, client, uuid):
         pass
 
-    async def bluetooth_notify(self, client, uuid):
-        pass
+    async def bluetooth_notify(self, client, uuid, stop_event):
+        client.start_notify(
+            uuid,
+            lambda uuid, data: self.bluetooth_notify_callback(
+                client, uuid, data
+            ),
+        )
+        await stop_event.wait()
+
+    def bluetooth_notify_callback(self, client, uuid, data):
+        try:
+            self.data_queue.put_nowait((client.address, uuid, data))
+        except queue.Full:
+            # TODO better handling of this case
+            pass
 
     def _asyncloop(self):
         asyncio.set_event_loop(self.event_loop)
