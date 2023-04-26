@@ -23,6 +23,7 @@ class Ble:
         self.scanning = False
         self.connected_devices = {}
         self.disconnect_events = {}
+        self.notification_devices = {}
         self.stop_notify_events = {}
         self.status_queue = queue.Queue()
         self.data_queue = queue.Queue()
@@ -201,6 +202,8 @@ class Ble:
                     self.stop_notify_events[dev_addr][
                         char_uuid
                     ] = asyncio.Event()
+                    if dev_addr not in self.notification_devices:
+                        self.notification_devices[dev_addr] = {}
                     asyncio.run_coroutine_threadsafe(
                         self.bluetooth_notify(
                             client,
@@ -221,8 +224,8 @@ class Ble:
 
     def are_notifications_enabled(self, dev_addr, char_uuid):
         return (
-            dev_addr in self.stop_notify_events.keys()
-            and char_uuid in self.stop_notify_events[dev_addr].keys()
+            dev_addr in self.notification_devices.keys()
+            and char_uuid in self.notification_devices[dev_addr].keys()
         )
 
     async def bluetooth_scan(self, stop_event):
@@ -258,6 +261,8 @@ class Ble:
     def _disconnect_callback(self, client):
         del self.connected_devices[client.address]
         del self.status_devices[client.address]
+        if client.address in self.notification_devices.keys():
+            del self.notification_devices[client.address]
         try:
             self.status_queue.put_nowait(
                 (client.address, BleStatus.Disconnected)
@@ -276,10 +281,13 @@ class Ble:
 
     async def bluetooth_write(self, client, uuid, data):
         await client.write_gatt_char(uuid, data)
-        # TODO maybe notify the status
-
-    async def bluetooth_indicate(self, client, uuid):
-        pass
+        try:
+            self.status_queue.put_nowait(
+                (client.address, BleStatus.WriteSuccessful, uuid)
+            )
+        except queue.Full:
+            # TODO better handling of this case
+            pass
 
     async def bluetooth_notify(self, client, uuid, stop_event):
         await client.start_notify(
@@ -288,6 +296,7 @@ class Ble:
                 client, uuid, data
             ),
         )
+        self.notification_devices[client.address][uuid] = True
         try:
             self.status_queue.put_nowait(
                 (client.address, BleStatus.NotificationsEnabled, uuid)
@@ -297,6 +306,7 @@ class Ble:
             pass
         await stop_event.wait()
         await client.stop_notify(uuid)
+        del self.notification_devices[client.address]
         try:
             self.status_queue.put_nowait(
                 (client.address, BleStatus.NotificationsDisabled, uuid)

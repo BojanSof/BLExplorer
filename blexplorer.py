@@ -127,7 +127,7 @@ class BLExplorerGUI:
                 )
                 data = bytearray.fromhex(data_str)
                 self.ble.write_characteristic(dev_addr, char_uuid, data)
-            elif "NOTIFY" in event or "INDICATE" in event:
+            elif "NOTIFY" in event:
                 if self.ble.are_notifications_enabled(dev_addr, char_uuid):
                     self.ble.stop_notifications_characteristic(
                         dev_addr, char_uuid
@@ -246,14 +246,9 @@ class BLExplorerGUI:
                 dev_addr, notification_status, char_uuid = status
                 section = self.chars_maps[dev_addr][char_uuid]
                 self.window[section + "-NOTIFY-"].update(
-                    text="⤈⤈"
+                    button_color=("white", "red")
                     if notification_status == BleStatus.NotificationsEnabled
-                    else "↓↓"
-                )
-                self.window[section + "-INDICATE-"].update(
-                    text="⤉⤈"
-                    if notification_status == BleStatus.NotificationsEnabled
-                    else "↑↓"
+                    else sg.theme_button_color()
                 )
             elif status[1] in [BleStatus.WriteSuccessful]:
                 pass
@@ -692,6 +687,7 @@ class BLExplorerGUI:
                             "↑↓",
                             enable_events=True,
                             font=14,
+                            disabled=True,  # indications are not supported yet
                             key=key + "-INDICATE-",
                         )
                     ),
