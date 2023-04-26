@@ -136,6 +136,36 @@ class BLExplorerGUI:
                     self.ble.start_notifications_characteristic(
                         dev_addr, char_uuid
                     )
+        elif "DESCRIPTOR" in event:
+            char_base_key = event.split("--")[0] + "-"
+            tab_num = int(event.split("$")[1].split(",")[0])
+            dev_addr = [
+                addr for addr, tab in self.dev_tabs.items() if tab == tab_num
+            ][0]
+            char_uuid = [
+                uuid
+                for uuid, e_key in self.chars_maps[dev_addr].items()
+                if char_base_key in e_key
+            ][0]
+            services = self.ble.get_services_and_characteristics(dev_addr)
+            service = [
+                serv
+                for _, serv in services.items()
+                if char_uuid in serv["characteristics"].keys()
+            ][0]
+            char = service["characteristics"][char_uuid]
+            desc_uuids = list(char["descriptors"].keys())
+            desc_names = [
+                desc["name"] for _, desc in char["descriptors"].items()
+            ]
+            descriptor_name_key = char_base_key + "-DESCRIPTORS_NAMES-"
+            descriptor_uuid_key = char_base_key + "-DESCRIPTORS_UUIDS-"
+            if "NAMES" in event:
+                i_desc = desc_names.index(values[event])
+            else:
+                i_desc = desc_uuids.index(values[event])
+            self.window[descriptor_name_key].update(value=desc_names[i_desc])
+            self.window[descriptor_uuid_key].update(value=desc_uuids[i_desc])
 
     def update(self):
         # update scan info
@@ -296,6 +326,30 @@ class BLExplorerGUI:
                     self.window[char_key + "-PROPERTIES-"].update(
                         value=",".join(char["properties"])
                     )
+                    desc_uuids = [uuid for uuid in char["descriptors"].keys()]
+                    desc_names = [
+                        desc["name"] for _, desc in char["descriptors"].items()
+                    ]
+                    if len(desc_uuids) > 0:
+                        self.window[char_key + "-DESCRIPTORS_LABEL-"].update(
+                            visible=True
+                        )
+                        self.window[char_key + "-DESCRIPTORS_NAMES-"].update(
+                            value=desc_names[0], values=desc_names, visible=True
+                        )
+                        self.window[char_key + "-DESCRIPTORS_UUIDS-"].update(
+                            value=desc_uuids[0], values=desc_uuids, visible=True
+                        )
+                    else:
+                        self.window[char_key + "-DESCRIPTORS_LABEL-"].update(
+                            visible=False
+                        )
+                        self.window[char_key + "-DESCRIPTORS_NAMES-"].update(
+                            value="", values=[""], visible=False
+                        )
+                        self.window[char_key + "-DESCRIPTORS_UUIDS-"].update(
+                            value="", values=[""], visible=False
+                        )
                     self.window[char_key + "-READ-"].update(
                         visible="read" in char["properties"]
                     )
@@ -625,7 +679,11 @@ class BLExplorerGUI:
                 [sg.Text("UUID", key=key + "-UUID_LABEL-")],
                 [sg.Text("Properties", key=key + "-PROPERTIES_LABEL-")],
                 [sg.Text("Value", key=key + "-VALUE_LABEL-")],
-                [sg.Text("Descriptors", key=key + "-DESCRIPTORS_LABEL-")],
+                [
+                    sg.pin(
+                        sg.Text("Descriptors", key=key + "-DESCRIPTORS_LABEL-")
+                    )
+                ],
             ]
         )
         characteristic_vals = sg.Column(
@@ -655,13 +713,26 @@ class BLExplorerGUI:
                     )
                 ],
                 [
-                    sg.Combo(
-                        [""],
-                        default_value="",
-                        readonly=True,
-                        size=(15,),
-                        key=key + "-DESCRIPTORS-",
-                    )
+                    sg.pin(
+                        sg.Combo(
+                            [""],
+                            default_value="",
+                            readonly=True,
+                            size=(33,),
+                            enable_events=True,
+                            key=key + "-DESCRIPTORS_NAMES-",
+                        )
+                    ),
+                    sg.pin(
+                        sg.Combo(
+                            [""],
+                            default_value="",
+                            readonly=True,
+                            size=(33,),
+                            enable_events=True,
+                            key=key + "-DESCRIPTORS_UUIDS-",
+                        )
+                    ),
                 ],
             ]
         )

@@ -156,6 +156,15 @@ class Ble:
                         "properties": characteristic.properties,
                         "characteristic": characteristic,
                     }
+                    characteristic_descriptors = {}
+                    for descriptor in characteristic.descriptors:
+                        characteristic_descriptors[descriptor.uuid] = {
+                            "name": descriptor.description,
+                            "descriptor": descriptor,
+                        }
+                    service_characteristics[characteristic.uuid][
+                        "descriptors"
+                    ] = characteristic_descriptors
                 services_collection[service.uuid][
                     "characteristics"
                 ] = service_characteristics
