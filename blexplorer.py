@@ -325,6 +325,9 @@ class BLExplorerGUI:
             for i_service in range(len(dev_attr), MAX_NUM_SERVICES):
                 service_key = f"-SERVICE${i_tab},{i_service + 1}$-"
                 self.window[service_key + "-CONTAINER-"].update(visible=False)
+            dev_tab_section = f"-DEV${i_tab}$_CONTAINER-"
+            self.window.refresh()
+            self.window[dev_tab_section].contents_changed()
 
     def clear_scan_data(self):
         self.i_selected_dev = None
