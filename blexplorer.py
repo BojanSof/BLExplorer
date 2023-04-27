@@ -8,7 +8,7 @@ from ble import Ble, BleStatus
 
 MAX_NUM_DEVICES = 3  # maximum number of connected devices
 MAX_NUM_SERVICES = 6  # maximum number of services per device
-MAX_NUM_CHARACTERISTICS = 3  # maximum number of characteristics per service
+MAX_NUM_CHARACTERISTICS = 5  # maximum number of characteristics per service
 
 
 def resource_path(relative_path):
