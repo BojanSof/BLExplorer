@@ -125,8 +125,9 @@ class BLExplorerGUI:
                 data_str = sg.popup_get_text(
                     "Enter bytes to write, in hex", title="Write characteristic"
                 )
-                data = bytearray.fromhex(data_str)
-                self.ble.write_characteristic(dev_addr, char_uuid, data)
+                if data_str is not None:
+                    data = bytearray.fromhex(data_str)
+                    self.ble.write_characteristic(dev_addr, char_uuid, data)
             elif "NOTIFY" in event:
                 if self.ble.are_notifications_enabled(dev_addr, char_uuid):
                     self.ble.stop_notifications_characteristic(
