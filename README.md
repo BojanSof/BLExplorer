@@ -1,5 +1,6 @@
 ## blexplorer
 ![BLExplorer](images/title.png)
+
 App for exploring Bluetooth Low Energy devices.
 
 ![BLExplorer main window](images/preview.png)
