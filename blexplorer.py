@@ -370,6 +370,19 @@ class BLExplorerGUI:
                     self.window[char_key + "-NOTIFY-"].update(
                         visible="notify" in char["properties"]
                     )
+                    if (
+                        len(char["properties"]) == 1
+                        and "write" in char["properties"][0]
+                    ):
+                        self.window[char_key + "-VALUE_LABEL-"].update(
+                            visible=False
+                        )
+                        self.window[char_key + "-VALUE-"].update(visible=False)
+                    else:
+                        self.window[char_key + "-VALUE_LABEL-"].update(
+                            visible=True
+                        )
+                        self.window[char_key + "-VALUE-"].update(visible=True)
                     self.window[char_key + "-CONTAINER-"].update(visible=True)
                     # by default, section is collapsed
                     self.window[char_key].update(visible=False)
@@ -692,7 +705,7 @@ class BLExplorerGUI:
             [
                 [sg.Text("UUID", key=key + "-UUID_LABEL-")],
                 [sg.Text("Properties", key=key + "-PROPERTIES_LABEL-")],
-                [sg.Text("Value", key=key + "-VALUE_LABEL-")],
+                [sg.pin(sg.Text("Value", key=key + "-VALUE_LABEL-"))],
                 [
                     sg.pin(
                         sg.Text("Descriptors", key=key + "-DESCRIPTORS_LABEL-")
@@ -719,11 +732,13 @@ class BLExplorerGUI:
                     )
                 ],
                 [
-                    sg.Input(
-                        "",
-                        readonly=True,
-                        size=(33,),
-                        key=key + "-VALUE-",
+                    sg.pin(
+                        sg.Input(
+                            "",
+                            readonly=True,
+                            size=(33,),
+                            key=key + "-VALUE-",
+                        )
                     )
                 ],
                 [
