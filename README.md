@@ -20,7 +20,7 @@ Python requirements can be installed by running `pip install -r requirements.txt
 
 Executable can be created by running:
 
-`pyinstaller --onefile --windowed -i "resources/blexplorer.ico" --workpath "." --distpath "build" --add-data "resources/blexplorer.ico;resources" --add-data "resources/blexplorer.png;resources" blexplorer.py`
+`pyinstaller --onefile --windowed -i "resources/blexplorer.ico" --add-data "resources/blexplorer.ico;resources" --add-data "resources/blexplorer.png;resources" blexplorer.py`
 
 ## TODO
 
