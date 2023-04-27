@@ -1,13 +1,20 @@
 import os
+import sys
 
 import PySimpleGUI as sg
 
 from ble import Ble, BleStatus
 
 
-MAX_NUM_DEVICES = 2  # maximum number of connected devices
+MAX_NUM_DEVICES = 3  # maximum number of connected devices
 MAX_NUM_SERVICES = 6  # maximum number of services per device
-MAX_NUM_CHARACTERISTICS = 5  # maximum number of characteristics per service
+MAX_NUM_CHARACTERISTICS = 3  # maximum number of characteristics per service
+
+
+def resource_path(relative_path):
+    if hasattr(sys, "_MEIPASS"):
+        return os.path.join(sys._MEIPASS, relative_path)
+    return os.path.join(os.path.abspath("."), relative_path)
 
 
 class BLExplorerGUI:
@@ -29,7 +36,7 @@ class BLExplorerGUI:
             resizable=True,
             size=(1024, 700),
             font=("Helvetica", 12),
-            icon=os.path.join("resources", "blexplorer.ico"),
+            icon=resource_path(os.path.join("resources", "blexplorer.ico")),
         )
         self.running = True
         while self.running:
@@ -422,7 +429,8 @@ class BLExplorerGUI:
         font = "Helvetica"
         layout_heading = [
             sg.Image(
-                os.path.join("resources", "blexplorer.png"), size=(100, 100)
+                resource_path(os.path.join("resources", "blexplorer.png")),
+                size=(100, 100),
             ),
             sg.Text("BLExplorer", font=(font, 48)),
         ]
