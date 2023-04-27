@@ -203,6 +203,13 @@ class BLExplorerGUI:
             dev = self.ble.get_found_devices()[self.i_selected_dev]
             self.window["-ADV_NAME-"].update(value=dev["name"])
             self.window["-ADV_RSSI-"].update(value=f"{dev['rssi']}")
+            if len(dev["manufacturer_data"]) > 0:
+                mfr_id, mfr_data = list(dev["manufacturer_data"].items())[0]
+                self.window["-ADV_MFR_ID-"].update(value=f"{mfr_id:04x}")
+                self.window["-ADV_MFR_DATA-"].update(value=f"{mfr_data.hex()}")
+            else:
+                self.window["-ADV_MFR_ID-"].update(value="")
+                self.window["-ADV_MFR_DATA-"].update(value="")
             if len(dev["uuids"]) > 0:
                 old_uuid_val = self.window["-ADV_UUIDS-"].get()
                 new_uuid_val = dev["uuids"][0]
@@ -437,7 +444,7 @@ class BLExplorerGUI:
             [
                 [sg.Text("Local name ", key="-ADV_NAME_LABEL-")],
                 [sg.Text("RSSI (dBm)", key="-ADV_RSSI_LABEL-")],
-                [sg.Text("Manufacturer ID", key="-ADV_MFR_ID_LABEL-")],
+                [sg.Text("Manufacturer Data", key="-ADV_MFR_ID_LABEL-")],
                 [sg.Text("Service UUIDs", key="-ADV_UUIDS_LABEL-")],
             ]
         )
@@ -463,9 +470,15 @@ class BLExplorerGUI:
                     sg.Input(
                         "",
                         readonly=True,
-                        size=(15, 1),
+                        size=(6, 1),
                         key="-ADV_MFR_ID-",
-                    )
+                    ),
+                    sg.Input(
+                        "",
+                        readonly=True,
+                        size=(27, 1),
+                        key="-ADV_MFR_DATA-",
+                    ),
                 ],
                 [
                     sg.Combo(

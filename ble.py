@@ -81,6 +81,7 @@ class Ble:
                 "address": address,
                 "rssi": advertisement_data.rssi,
                 "uuids": advertisement_data.service_uuids,
+                "manufacturer_data": advertisement_data.manufacturer_data,
                 "dev": device,
             }
             devices.append(dev)
